@@ -1,11 +1,12 @@
-import { OrbitControls, Stars, Cloud, Environment } from '@react-three/drei';
-import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
-import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
+import { OrbitControls } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { BuildingManager } from './BuildingManager';
 import { ParkTerrain } from './ParkTerrain';
 import { FloatingPlatform } from './FloatingPlatform';
+import { UndergroundLayer, DeepLayer } from './Layers';
 
 // --- Shaders ---
 const snowVertexShader = `
@@ -112,41 +113,6 @@ const SnowSystem = () => {
   );
 };
 
-const Trees = () => {
-  const mesh = useRef<THREE.InstancedMesh>(null!);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  const treeData = useMemo(() => {
-    const instances: THREE.Matrix4[] = [];
-    // Place trees INSIDE the park void (40x200)
-    for (let i = 0; i < 1000; i++) {
-      const x = (Math.random() - 0.5) * 18; // Keep within -9 to 9 (park width)
-      const z = (Math.random() - 0.5) * 48; // Keep within -24 to 24 (park length)
-      
-      // Avoid lake area (approx z > 10)
-      if (z > 10 && x > 0) continue;
-
-      dummy.position.set(x, 0, z);
-      const scale = 0.3 + Math.random() * 0.4;
-      dummy.scale.set(scale, scale * (0.8 + Math.random() * 0.4), scale);
-      dummy.rotation.y = Math.random() * Math.PI;
-      dummy.updateMatrix();
-      instances.push(dummy.matrix.clone());
-    }
-    return instances;
-  }, []);
-
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, treeData.length]}>
-      <coneGeometry args={[1, 2, 4]} />
-      <meshStandardMaterial color="#a0c0a0" roughness={0.8} />
-      {treeData.map((matrix, i) => (
-        <primitive key={i} object={dummy} /> // React-three-fiber handles instance matrix updates automatically if passed via args, but manual set is better for static
-      ))}
-    </instancedMesh>
-  );
-};
-
 // Manual matrix update for trees
 const TreeInstances = () => {
    const mesh = useRef<THREE.InstancedMesh>(null!);
@@ -184,8 +150,46 @@ const TreeInstances = () => {
    )
 }
 
+// --- ANIMATED LAYER GROUPS ---
+const AnimatedLayer = ({ targetY, children }: { targetY: number, children: React.ReactNode }) => {
+  const groupRef = useRef<THREE.Group>(null!);
+  
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      // Smooth lerp to target Y position
+      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, delta * 3);
+    }
+  });
 
-export default function Scene() {
+  return <group ref={groupRef}>{children}</group>;
+};
+
+
+interface SceneProps {
+  activeLayer: 'surface' | 'underground' | 'deep';
+}
+
+export default function Scene({ activeLayer }: SceneProps) {
+  
+  // Calculate target Y positions based on active layer
+  // Surface: 0 (default), 15 (underground), 30 (deep)
+  // Underground: -15 (default), 0 (underground), 15 (deep)
+  // Deep: -30 (default), -15 (underground), 0 (deep)
+  
+  let surfaceY = 0;
+  let undergroundY = -20;
+  let deepY = -40;
+
+  if (activeLayer === 'underground') {
+    surfaceY = 20;
+    undergroundY = 0;
+    deepY = -20;
+  } else if (activeLayer === 'deep') {
+    surfaceY = 40;
+    undergroundY = 20;
+    deepY = 0;
+  }
+
   return (
     <Canvas shadows camera={{ position: [40, 40, 40], fov: 35, near: 1, far: 1000 }}>
       <color attach="background" args={['#ffdde1']} /> {/* Pastel Pink Sky */}
@@ -215,14 +219,32 @@ export default function Scene() {
       {/* Environment */}
       <fog attach="fog" args={['#ffdde1', 30, 120]} />
       
-      {/* World Content */}
-      <group position={[0, -5, 0]}>
-        <FloatingPlatform />
-        <ParkTerrain />
-        <TreeInstances />
-        <BuildingManager />
-        <SnowSystem />
-      </group>
+      {/* --- LAYERS --- */}
+      
+      {/* SURFACE LAYER (City) */}
+      <AnimatedLayer targetY={surfaceY}>
+        <group position={[0, -5, 0]}>
+          <FloatingPlatform />
+          <ParkTerrain />
+          <TreeInstances />
+          <BuildingManager />
+          <SnowSystem />
+        </group>
+      </AnimatedLayer>
+
+      {/* UNDERGROUND LAYER (Subway) */}
+      <AnimatedLayer targetY={undergroundY}>
+         <group position={[0, -5, 0]}>
+            <UndergroundLayer />
+         </group>
+      </AnimatedLayer>
+
+      {/* DEEP INFRA LAYER (Pipes) */}
+      <AnimatedLayer targetY={deepY}>
+         <group position={[0, -5, 0]}>
+            <DeepLayer />
+         </group>
+      </AnimatedLayer>
 
       {/* Post Processing */}
       <EffectComposer>
