@@ -4,6 +4,7 @@ import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postp
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { LandmarkGeometries } from './Landmarks';
+import { SanRemo, TheDakota, Guggenheim, ThePlaza, TheMet } from './RealLandmarks';
 import { createSteppedBuildingGeometry } from './SteppedBuilding';
 import { ParkTerrain } from './ParkTerrain';
 import { FloatingPlatform } from './FloatingPlatform';
@@ -251,6 +252,33 @@ const City = () => {
         <boxGeometry />
         <meshBasicMaterial color="#ffd700" />
       </instancedMesh>
+
+      {/* --- REAL Central Park Landmarks --- */}
+
+      {/* Central Park West: The San Remo (Twin Towers) */}
+      <mesh geometry={useMemo(() => SanRemo(), [])} position={[-45, 0, 20]} rotation={[0, Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
+        <meshStandardMaterial color="#eecfa1" roughness={0.8} />
+      </mesh>
+
+      {/* Central Park West: The Dakota */}
+      <mesh geometry={useMemo(() => TheDakota(), [])} position={[-45, 0, -20]} rotation={[0, Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
+        <meshStandardMaterial color="#8b4513" roughness={0.9} />
+      </mesh>
+
+      {/* Fifth Avenue: The Guggenheim (Spiral) */}
+      <mesh geometry={useMemo(() => Guggenheim(), [])} position={[45, 0, -40]} rotation={[0, -Math.PI/2, 0]} scale={[1.2, 1.2, 1.2]}>
+        <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
+      </mesh>
+
+      {/* Fifth Avenue: The Met Museum */}
+      <mesh geometry={useMemo(() => TheMet(), [])} position={[45, 0, 10]} rotation={[0, -Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
+        <meshStandardMaterial color="#d3d3d3" roughness={0.8} />
+      </mesh>
+
+      {/* Central Park South: The Plaza Hotel */}
+      <mesh geometry={useMemo(() => ThePlaza(), [])} position={[10, 0, 105]} rotation={[0, 0, 0]} scale={[1.8, 1.8, 1.8]}>
+        <meshStandardMaterial color="#fffdd0" roughness={0.7} />
+      </mesh>
 
       {/* --- Iconic Landmarks (South End / Midtown) --- */}
       
