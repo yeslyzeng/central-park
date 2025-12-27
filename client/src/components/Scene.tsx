@@ -1,75 +1,94 @@
-import { Cloud, Environment, OrbitControls, Stars, Float } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Bloom, EffectComposer, Vignette, ToneMapping } from "@react-three/postprocessing";
-import { useMemo, useRef, useEffect } from "react";
-import * as THREE from "three";
+import { OrbitControls, Stars, Cloud, Environment } from '@react-three/drei';
+import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
+import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
+import { useMemo, useRef, useEffect } from 'react';
+import * as THREE from 'three';
+import { LandmarkGeometries } from './Landmarks';
+import { createSteppedBuildingGeometry } from './SteppedBuilding';
 
-// --- GPU Optimized Snow Shader ---
+// --- Shaders ---
 const snowVertexShader = `
   uniform float uTime;
-  uniform float uHeight;
+  uniform float uSize;
   attribute float aSpeed;
   attribute float aSize;
   attribute vec3 aRandom;
-  
+  varying float vAlpha;
+
   void main() {
     vec3 pos = position;
     
-    // Fall down based on time and speed
-    pos.y = position.y - uTime * aSpeed;
+    // Fall down
+    pos.y = mod(pos.y - uTime * aSpeed, 40.0) - 5.0;
     
-    // Wrap around height
-    pos.y = mod(pos.y, uHeight);
-    
-    // Add turbulence
-    pos.x += sin(uTime * 0.5 + aRandom.y) * 0.5;
-    pos.z += cos(uTime * 0.3 + aRandom.x) * 0.5;
-    
+    // Horizontal drift (turbulence)
+    pos.x += sin(uTime * aSpeed * 0.5 + aRandom.x * 10.0) * 0.5;
+    pos.z += cos(uTime * aSpeed * 0.3 + aRandom.z * 10.0) * 0.5;
+
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = aSize * (300.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
+    
+    // Size attenuation
+    gl_PointSize = (uSize * aSize) * (20.0 / -mvPosition.z);
+    
+    // Fade out at bottom
+    vAlpha = smoothstep(-5.0, 0.0, pos.y);
   }
 `;
 
 const snowFragmentShader = `
+  varying float vAlpha;
+  
   void main() {
-    float r = distance(gl_PointCoord, vec2(0.5));
-    if (r > 0.5) discard;
-    float alpha = 1.0 - (r * 2.0);
-    gl_FragColor = vec4(1.0, 1.0, 1.0, alpha * 0.8);
+    // Circular particle
+    vec2 center = gl_PointCoord - 0.5;
+    float dist = length(center);
+    if (dist > 0.5) discard;
+    
+    // Soft edge
+    float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+    gl_FragColor = vec4(1.0, 1.0, 1.0, alpha * vAlpha * 0.8);
   }
 `;
 
-function Snow({ count = 15000 }) {
+// --- Components ---
+
+const SnowSystem = () => {
+  const count = 15000;
   const mesh = useRef<THREE.Points>(null!);
   const material = useRef<THREE.ShaderMaterial>(null!);
-  
-  const [positions, speeds, sizes, randoms] = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    const spd = new Float32Array(count);
-    const sz = new Float32Array(count);
-    const rnd = new Float32Array(count * 3);
-    
+
+  const { positions, speeds, sizes, randoms } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const speeds = new Float32Array(count);
+    const sizes = new Float32Array(count);
+    const randoms = new Float32Array(count * 3);
+
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 300;
-      pos[i * 3 + 1] = Math.random() * 100;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 300;
+      positions[i * 3] = (Math.random() - 0.5) * 150; // x
+      positions[i * 3 + 1] = Math.random() * 40 - 5; // y
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 150; // z
+
+      speeds[i] = 1 + Math.random() * 3;
+      sizes[i] = 0.5 + Math.random() * 1.5;
       
-      spd[i] = 2.0 + Math.random() * 5.0; // Faster fall speed for shader
-      sz[i] = 0.5 + Math.random() * 1.5;
-      
-      rnd[i * 3] = Math.random() * 10;
-      rnd[i * 3 + 1] = Math.random() * 10;
-      rnd[i * 3 + 2] = Math.random() * 10;
+      randoms[i * 3] = Math.random();
+      randoms[i * 3 + 1] = Math.random();
+      randoms[i * 3 + 2] = Math.random();
     }
-    return [pos, spd, sz, rnd];
-  }, [count]);
+    return { positions, speeds, sizes, randoms };
+  }, []);
 
   useFrame((state) => {
     if (material.current) {
       material.current.uniforms.uTime.value = state.clock.getElapsedTime();
     }
   });
+
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uSize: { value: 2.0 }
+  }), []);
 
   return (
     <points ref={mesh}>
@@ -83,265 +102,225 @@ function Snow({ count = 15000 }) {
         ref={material}
         vertexShader={snowVertexShader}
         fragmentShader={snowFragmentShader}
+        uniforms={uniforms}
         transparent
         depthWrite={false}
         blending={THREE.AdditiveBlending}
-        uniforms={{
-          uTime: { value: 0 },
-          uHeight: { value: 100 }
-        }}
       />
     </points>
   );
-}
+};
 
-// --- Instanced City Layout ---
-function CentralParkCity() {
-  const meshRef = useRef<THREE.InstancedMesh>(null!);
-  const lightMeshRef = useRef<THREE.InstancedMesh>(null!);
-  const count = 600; // Total max buildings
+const FrozenLake = () => {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
+      <planeGeometry args={[200, 200]} />
+      <meshPhysicalMaterial
+        color="#aaddff"
+        roughness={0.05}
+        metalness={0.1}
+        transmission={0.6}
+        thickness={2}
+        ior={1.33}
+        clearcoat={1}
+        clearcoatRoughness={0.1}
+      />
+    </mesh>
+  );
+};
+
+const City = () => {
+  const genericMesh = useRef<THREE.InstancedMesh>(null!);
+  const lightMesh = useRef<THREE.InstancedMesh>(null!);
   
-  const { buildings, lightTransforms } = useMemo(() => {
-    const items = [];
-    const lights = [];
-    const parkWidth = 60;
-    const parkLength = 150;
+  // Landmark refs
+  const empireRef = useRef<THREE.Mesh>(null!);
+  const chryslerRef = useRef<THREE.Mesh>(null!);
+  const park432Ref = useRef<THREE.Mesh>(null!);
+  const vanderbiltRef = useRef<THREE.Mesh>(null!);
+
+  const { genericData, lightData } = useMemo(() => {
+    const genericInstances: THREE.Matrix4[] = [];
+    const lightInstances: THREE.Matrix4[] = [];
     const dummy = new THREE.Object3D();
-    const dummyLight = new THREE.Object3D();
+
+    // Create a rectangular void for Central Park (approx -15 to 15 in X, -40 to 40 in Z)
+    // We will place buildings OUTSIDE this box
     
-    let idx = 0;
-    // Generate grid of buildings around the park
-    for (let x = -150; x <= 150; x += 12) {
-      for (let z = -150; z <= 150; z += 12) {
-        if (idx >= count) break;
-        
-        // Create the "Central Park" void
-        if (Math.abs(x) < parkWidth / 2 && Math.abs(z) < parkLength / 2) continue;
-        
-        // Randomize position slightly
-        const posX = x + (Math.random() - 0.5) * 4;
-        const posZ = z + (Math.random() - 0.5) * 4;
-        
-        const width = 6 + Math.random() * 5;
-        const depth = 6 + Math.random() * 5;
-        
-        // Taller buildings closer to the park edge
-        const distToPark = Math.min(Math.abs(Math.abs(x) - parkWidth/2), Math.abs(Math.abs(z) - parkLength/2));
-        const heightBase = Math.max(20, 120 - distToPark * 0.8);
-        const height = heightBase + Math.random() * 60;
-        
-        dummy.position.set(posX, height / 2 - 2, posZ);
-        dummy.scale.set(width, height, depth);
+    for (let i = 0; i < 600; i++) {
+      const x = (Math.random() - 0.5) * 180;
+      const z = (Math.random() - 0.5) * 180;
+
+      // Check if inside Central Park void
+      if (Math.abs(x) < 20 && Math.abs(z) < 50) continue;
+
+      // Scale based on distance to center (taller near park)
+      const dist = Math.sqrt(x*x + z*z);
+      const scaleY = Math.max(2, Math.random() * 20 - dist * 0.1);
+      
+      // Adjust position for stepped geometry (pivot is different)
+      dummy.position.set(x, scaleY / 2, z);
+      dummy.rotation.y = 0; // Grid layout
+      // Make them slightly wider to look like city blocks
+      dummy.scale.set(3 + Math.random() * 2, scaleY / 2, 3 + Math.random() * 2);
+      dummy.updateMatrix();
+      genericInstances.push(dummy.matrix.clone());
+
+      // Add window lights
+      if (Math.random() > 0.3) {
+        // Add internal light blocks
+        const lightScaleY = scaleY * 0.8;
+        dummy.position.set(x, lightScaleY / 2 + 0.5, z);
+        dummy.scale.set(1.5, lightScaleY, 1.5);
         dummy.updateMatrix();
-        items.push(dummy.matrix.clone());
-        
-        // Interior light mesh (slightly smaller)
-        dummyLight.position.set(posX, height / 2 - 2, posZ);
-        dummyLight.scale.set(width * 0.9, height * 0.98, depth * 0.9);
-        dummyLight.updateMatrix();
-        lights.push(dummyLight.matrix.clone());
-        
-        idx++;
+        lightInstances.push(dummy.matrix.clone());
       }
     }
-    return { buildings: items, lightTransforms: lights };
+    
+    return { 
+      genericData: genericInstances,
+      lightData: lightInstances
+    };
   }, []);
 
   useEffect(() => {
-    if (meshRef.current) {
-      buildings.forEach((matrix, i) => {
-        meshRef.current.setMatrixAt(i, matrix);
-      });
-      meshRef.current.instanceMatrix.needsUpdate = true;
+    if (genericMesh.current) {
+      genericData.forEach((matrix, i) => genericMesh.current.setMatrixAt(i, matrix));
+      genericMesh.current.instanceMatrix.needsUpdate = true;
     }
-    if (lightMeshRef.current) {
-      lightTransforms.forEach((matrix, i) => {
-        lightMeshRef.current.setMatrixAt(i, matrix);
-      });
-      lightMeshRef.current.instanceMatrix.needsUpdate = true;
+    if (lightMesh.current) {
+      lightData.forEach((matrix, i) => lightMesh.current.setMatrixAt(i, matrix));
+      lightMesh.current.instanceMatrix.needsUpdate = true;
     }
-  }, [buildings, lightTransforms]);
+  }, [genericData, lightData]);
+
+  // Geometries
+  const steppedGeo = useMemo(() => createSteppedBuildingGeometry(), []);
+  const empireGeo = useMemo(() => LandmarkGeometries.EmpireState(), []);
+  const chryslerGeo = useMemo(() => LandmarkGeometries.Chrysler(), []);
+  const park432Geo = useMemo(() => LandmarkGeometries.Park432(), []);
+  const vanderbiltGeo = useMemo(() => LandmarkGeometries.OneVanderbilt(), []);
 
   return (
     <group>
-      {/* Glass Shell Instances */}
-      <instancedMesh ref={meshRef} args={[undefined, undefined, buildings.length]} castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshPhysicalMaterial 
-          color="#90caf9"
-          transmission={0.9} 
-          opacity={1}
-          metalness={0.2}
-          roughness={0.05}
-          ior={1.5} 
-          thickness={5} 
-          envMapIntensity={2.5}
-          clearcoat={1}
-          attenuationColor="#e3f2fd"
-          attenuationDistance={5}
+      {/* Generic City Grid */}
+      <instancedMesh ref={genericMesh} args={[undefined, undefined, genericData.length]}>
+        <primitive object={steppedGeo} />
+        <meshPhysicalMaterial
+          color="#88ccff"
+          metalness={0.1}
+          roughness={0.1}
+          transmission={0.9}
+          thickness={1.5}
+          ior={1.5}
+          transparent
         />
       </instancedMesh>
+
+      {/* Window Lights */}
+      <instancedMesh ref={lightMesh} args={[undefined, undefined, lightData.length]}>
+        <boxGeometry />
+        <meshBasicMaterial color="#ffaa55" toneMapped={false} />
+      </instancedMesh>
+
+      {/* --- Iconic Landmarks (South End / Midtown) --- */}
       
-      {/* Warm Interior Lights Instances */}
-      <instancedMesh ref={lightMeshRef} args={[undefined, undefined, lightTransforms.length]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial 
-          color="#ffb74d"
-          transparent 
-          opacity={0.3} 
-          blending={THREE.AdditiveBlending} 
-        />
-      </instancedMesh>
+      {/* Empire State Building (South Center) */}
+      <mesh ref={empireRef} geometry={empireGeo || undefined} position={[0, 0, 60]} scale={[2, 2, 2]}>
+        <meshPhysicalMaterial color="#aaddff" metalness={0.2} roughness={0.1} transmission={0.8} thickness={2} />
+      </mesh>
+
+      {/* Chrysler Building (South East) */}
+      <mesh ref={chryslerRef} geometry={chryslerGeo || undefined} position={[15, 0, 65]} scale={[1.8, 1.8, 1.8]}>
+        <meshPhysicalMaterial color="#ccddff" metalness={0.3} roughness={0.1} transmission={0.8} thickness={2} />
+      </mesh>
+
+      {/* 432 Park Avenue (South East, closer) */}
+      <mesh ref={park432Ref} geometry={park432Geo || undefined} position={[10, 0, 45]} scale={[1.5, 1.5, 1.5]}>
+        <meshPhysicalMaterial color="#ffffff" metalness={0.1} roughness={0.1} transmission={0.9} thickness={1} />
+      </mesh>
+
+      {/* One Vanderbilt (South West) */}
+      <mesh ref={vanderbiltRef} geometry={vanderbiltGeo || undefined} position={[-12, 0, 55]} scale={[1.8, 1.8, 1.8]}>
+        <meshPhysicalMaterial color="#bbddff" metalness={0.2} roughness={0.1} transmission={0.8} thickness={2} />
+      </mesh>
+
     </group>
   );
-}
+};
 
-// --- Instanced Crystal Trees ---
-function CrystalTrees() {
-  const meshRef = useRef<THREE.InstancedMesh>(null!);
-  const count = 150;
+const Trees = () => {
+  const mesh = useRef<THREE.InstancedMesh>(null!);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  const transforms = useMemo(() => {
-    const items = [];
-    const dummy = new THREE.Object3D();
-    
-    for (let i = 0; i < count; i++) {
-      const x = (Math.random() - 0.5) * 40;
-      const z = (Math.random() - 0.5) * 100;
-      const scale = 0.5 + Math.random() * 0.8;
+  const treeData = useMemo(() => {
+    const instances: THREE.Matrix4[] = [];
+    // Place trees INSIDE the park void
+    for (let i = 0; i < 200; i++) {
+      const x = (Math.random() - 0.5) * 30; // Narrower X (width of park)
+      const z = (Math.random() - 0.5) * 80; // Longer Z (length of park)
       
-      dummy.position.set(x, scale * 2, z); // Adjust y based on scale/height
+      // Avoid center lake area
+      if (Math.abs(x) < 8 && Math.abs(z) < 15) continue;
+
+      dummy.position.set(x, 0, z);
+      const scale = 0.5 + Math.random() * 0.5;
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
-      items.push(dummy.matrix.clone());
+      instances.push(dummy.matrix.clone());
     }
-    return items;
+    return instances;
   }, []);
 
   useEffect(() => {
-    if (meshRef.current) {
-      transforms.forEach((matrix, i) => {
-        meshRef.current.setMatrixAt(i, matrix);
-      });
-      meshRef.current.instanceMatrix.needsUpdate = true;
+    if (mesh.current) {
+      treeData.forEach((matrix, i) => mesh.current.setMatrixAt(i, matrix));
+      mesh.current.instanceMatrix.needsUpdate = true;
     }
-  }, [transforms]);
+  }, [treeData]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, count]} castShadow>
-      <coneGeometry args={[1.2, 4, 6]} />
-      <meshPhysicalMaterial 
-        color="#e1f5fe"
-        transmission={0.8}
-        roughness={0.3}
-        metalness={0.2}
-        thickness={1}
-        envMapIntensity={1.5}
-      />
+    <instancedMesh ref={mesh} args={[undefined, undefined, treeData.length]}>
+      <coneGeometry args={[1, 4, 8]} />
+      <meshStandardMaterial color="#ddeeff" roughness={0.8} />
     </instancedMesh>
   );
-}
-
-// --- Frozen Lake Surface ---
-function FrozenLake() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]} receiveShadow>
-      <planeGeometry args={[50, 120]} />
-      <meshPhysicalMaterial 
-        color="#81d4fa"
-        metalness={0.1}
-        roughness={0.05}
-        transmission={0.4}
-        clearcoat={1}
-        clearcoatRoughness={0}
-        envMapIntensity={1.5}
-        ior={1.33}
-      />
-    </mesh>
-  );
-}
-
-// --- Abstract Ice Sculpture ---
-function IceSculpture() {
-  return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
-      <group position={[0, 5, 0]}>
-        <mesh castShadow>
-          <dodecahedronGeometry args={[4, 0]} />
-          <meshPhysicalMaterial 
-            color="#ffffff"
-            transmission={1}
-            roughness={0}
-            metalness={0}
-            ior={2.4} // Diamond
-            thickness={5}
-            envMapIntensity={3}
-            dispersion={5} // Rainbow dispersion
-          />
-        </mesh>
-        <pointLight color="#00e5ff" intensity={5} distance={20} decay={2} />
-      </group>
-    </Float>
-  );
-}
-
-// --- Ground ---
-function Ground() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[500, 500]} />
-      <meshStandardMaterial color="#eceff1" roughness={0.8} />
-    </mesh>
-  );
-}
+};
 
 export default function Scene() {
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 10, 40], fov: 50 }}>
-      {/* High Quality Environment */}
-      <Environment preset="city" background blur={0.8} />
-      
-      <OrbitControls 
-        maxPolarAngle={Math.PI / 2 - 0.05}
-        minDistance={5}
-        maxDistance={100}
-        autoRotate
-        autoRotateSpeed={0.1}
-        enableDamping
-      />
+    <div className="w-full h-screen bg-black">
+      <Canvas camera={{ position: [0, 10, -40], fov: 45 }}>
+        <color attach="background" args={['#050a15']} />
+        
+        <OrbitControls 
+          enablePan={false} 
+          maxPolarAngle={Math.PI / 2 - 0.05} 
+          minDistance={10}
+          maxDistance={100}
+          autoRotate
+          autoRotateSpeed={0.5}
+        />
 
-      {/* Cinematic Lighting - Optimized Shadow Map */}
-      <ambientLight intensity={0.2} color="#0d47a1" />
-      
-      <directionalLight 
-        position={[-50, 80, -50]} 
-        intensity={3} 
-        color="#e1f5fe"
-        castShadow 
-        shadow-mapSize={[2048, 2048]} // Reduced from 4096 for performance
-        shadow-bias={-0.0001}
-      />
-      
-      {/* City Glow (Warm) */}
-      <pointLight position={[0, 20, 0]} intensity={1} color="#ffcc80" distance={100} />
+        <ambientLight intensity={0.2} />
+        <pointLight position={[10, 20, 10]} intensity={1} color="#aaddff" />
+        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+        
+        <Environment preset="night" />
+        
+        <group>
+          <City />
+          <Trees />
+          <FrozenLake />
+          <SnowSystem />
+        </group>
 
-      <Stars radius={200} depth={50} count={5000} factor={4} saturation={0} fade speed={0.2} />
-      <Cloud opacity={0.2} speed={0.1} segments={10} position={[0, 60, -100]} color="#90caf9" />
-
-      <group>
-        <CentralParkCity />
-        <FrozenLake />
-        <IceSculpture />
-        <CrystalTrees />
-        <Ground />
-        <Snow count={15000} />
-      </group>
-
-      <EffectComposer>
-        <Bloom luminanceThreshold={0.8} luminanceSmoothing={0.5} height={300} intensity={1.5} />
-        <Vignette eskil={false} offset={0.1} darkness={0.5} />
-        <ToneMapping />
-      </EffectComposer>
-    </Canvas>
+        <EffectComposer enableNormalPass={false}>
+          <Bloom luminanceThreshold={1} mipmapBlur intensity={1.5} radius={0.4} />
+          <Vignette eskil={false} offset={0.1} darkness={1.1} />
+          <ToneMapping adaptive={true} resolution={256} middleGrey={0.6} maxLuminance={16.0} averageLuminance={1.0} adaptationRate={1.0} />
+        </EffectComposer>
+      </Canvas>
+    </div>
   );
 }
