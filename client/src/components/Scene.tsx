@@ -145,7 +145,7 @@ const TreeInstances = () => {
    return (
      <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
        <coneGeometry args={[1, 2.5, 5]} />
-       <meshStandardMaterial color="#cce0cc" roughness={0.9} />
+       <meshStandardMaterial color="#d0d0d0" roughness={0.9} /> {/* Grey trees for architectural look */}
      </instancedMesh>
    )
 }
@@ -192,7 +192,7 @@ export default function Scene({ activeLayer }: SceneProps) {
 
   return (
     <Canvas shadows camera={{ position: [40, 40, 40], fov: 35, near: 1, far: 1000 }}>
-      <color attach="background" args={['#ffdde1']} /> {/* Pastel Pink Sky */}
+      <color attach="background" args={['#f5f5f5']} /> {/* Architectural White/Grey Background */}
       
       {/* Isometric Camera Setup */}
       <orthographicCamera args={[-50, 50, 50, -50, 1, 1000]} position={[50, 50, 50]} zoom={10} />
@@ -205,19 +205,19 @@ export default function Scene({ activeLayer }: SceneProps) {
         minPolarAngle={0.5}
       />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.8} color="#ffffff" />
+      {/* Lighting - Clean Studio Lighting */}
+      <ambientLight intensity={0.6} color="#ffffff" />
       <directionalLight 
         position={[50, 100, 50]} 
-        intensity={1.5} 
+        intensity={1.2} 
         castShadow 
         shadow-mapSize={[2048, 2048]}
-        color="#fff0dd"
+        color="#ffffff"
       />
-      <pointLight position={[-20, 10, -20]} intensity={0.5} color="#aaddff" />
+      <directionalLight position={[-50, 50, -50]} intensity={0.4} color="#e0e0ff" /> {/* Fill light */}
 
       {/* Environment */}
-      <fog attach="fog" args={['#ffdde1', 30, 120]} />
+      <fog attach="fog" args={['#f5f5f5', 40, 150]} />
       
       {/* --- LAYERS --- */}
       
@@ -248,8 +248,8 @@ export default function Scene({ activeLayer }: SceneProps) {
 
       {/* Post Processing */}
       <EffectComposer>
-        <Bloom luminanceThreshold={0.8} mipmapBlur intensity={0.5} radius={0.4} />
-        <Vignette eskil={false} offset={0.1} darkness={0.3} />
+        <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.3} radius={0.4} />
+        <Vignette eskil={false} offset={0.1} darkness={0.2} />
       </EffectComposer>
     </Canvas>
   );

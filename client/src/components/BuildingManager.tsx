@@ -14,16 +14,6 @@ type BuildingData = {
   side: 'West' | 'East' | 'South' | 'North';
 };
 
-// Helper to map real-world location to game coordinates
-// Game world assumptions (based on previous version):
-// Center (0,0) is roughly middle of park
-// Park width (East-West) is approx 20 units (-10 to 10)
-// Park length (North-South) is approx 50 units (-25 to 25)
-// 59th St = z: 25 (South)
-// 110th St = z: -25 (North)
-// 5th Ave = x: 10 (East)
-// 8th Ave (CPW) = x: -10 (West)
-
 const STREET_TO_Z = (street: number) => {
   // Map 59-110 to 25 to -25
   const pct = (street - 59) / (110 - 59);
@@ -37,43 +27,48 @@ const AVENUE_TO_X = (avenue: number) => {
   return 10 - (pct * 20);
 };
 
-const BuildingGeometry = ({ style, height, color }: { style: string, height: number, color: string }) => {
-  // Simplified geometries for different styles
-  // In a real implementation, we might use different meshes for different styles
-  // For now, we'll use scale and color to differentiate
-  
+// Architectural Material - Clean White/Grey
+const ARCH_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#f0f0f0', // Very light grey/white
+  roughness: 0.7,   // Matte finish
+  metalness: 0.1,
+});
+
+const ACCENT_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#e0e0e0', // Slightly darker for details
+  roughness: 0.7,
+  metalness: 0.1,
+});
+
+const BuildingGeometry = ({ style, height }: { style: string, height: number }) => {
   // Base scale unit
   const scaleY = Math.max(1, height * 0.15); 
   
   return (
     <group>
-      <mesh position={[0, scaleY / 2, 0]}>
+      <mesh position={[0, scaleY / 2, 0]} castShadow receiveShadow material={ARCH_MATERIAL}>
         <boxGeometry args={[1.5, scaleY, 1.5]} />
-        <meshStandardMaterial color={color} roughness={0.3} />
       </mesh>
+      
       {/* Roof detail based on style */}
       {style.includes('twin') && (
         <>
-           <mesh position={[-0.4, scaleY + 0.5, 0]}>
+           <mesh position={[-0.4, scaleY + 0.5, 0]} castShadow receiveShadow material={ACCENT_MATERIAL}>
             <boxGeometry args={[0.5, 1, 0.5]} />
-            <meshStandardMaterial color={color} />
           </mesh>
-          <mesh position={[0.4, scaleY + 0.5, 0]}>
+          <mesh position={[0.4, scaleY + 0.5, 0]} castShadow receiveShadow material={ACCENT_MATERIAL}>
             <boxGeometry args={[0.5, 1, 0.5]} />
-            <meshStandardMaterial color={color} />
           </mesh>
         </>
       )}
       {style.includes('supertall') && (
-         <mesh position={[0, scaleY + 2, 0]}>
+         <mesh position={[0, scaleY + 2, 0]} castShadow receiveShadow material={ACCENT_MATERIAL}>
             <coneGeometry args={[0.5, 4, 4]} />
-            <meshStandardMaterial color={color} />
           </mesh>
       )}
        {style.includes('chateau') && (
-         <mesh position={[0, scaleY + 0.75, 0]}>
+         <mesh position={[0, scaleY + 0.75, 0]} castShadow receiveShadow material={ACCENT_MATERIAL}>
             <coneGeometry args={[1.0, 1.5, 4]} />
-            <meshStandardMaterial color="#506070" /> 
           </mesh>
       )}
     </group>
@@ -110,8 +105,8 @@ export const BuildingManager: React.FC = () => {
 
         return (
           <group key={`${b.name}-${i}`} position={[x, 0, z]} rotation={[0, rotY, 0]}>
-            <BuildingGeometry style={b.style} height={b.height} color={b.color} />
-            {/* Optional: Text label for debugging or interaction */}
+            {/* Ignore the pastel color from JSON, use architectural material */}
+            <BuildingGeometry style={b.style} height={b.height} />
           </group>
         );
       })}
