@@ -1,149 +1,389 @@
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Edges } from '@react-three/drei';
-import { useMemo } from 'react';
+import { OrbitControls, Stars, Cloud, Environment } from '@react-three/drei';
+import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
+import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
+import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { getAddressPosition } from './ManhattanGrid';
-import { landmarkData } from './AccurateLandmarks';
+import { LandmarkGeometries } from './Landmarks';
+import { SanRemo, TheDakota, Guggenheim, ThePlaza, TheMet } from './RealLandmarks';
+import { createSteppedBuildingGeometry } from './SteppedBuilding';
+import { ParkTerrain } from './ParkTerrain';
+import { FloatingPlatform } from './FloatingPlatform';
 
-// --- Pink Map Aesthetic Constants ---
-const COLORS = {
-  bg: '#f0f2f5', // Light grey/white background
-  park: '#e64980', // Deep Pink for Park (Reference style)
-  block: '#ffffff', // White blocks
-  blockOutline: '#dee2e6', // Light grey outlines
-  landmark: '#d6336c', // Pink accent for landmarks
-  water: '#faa2c1', // Light pink for water
+// --- Shaders ---
+const snowVertexShader = `
+  uniform float uTime;
+  uniform float uSize;
+  attribute float aSpeed;
+  attribute float aSize;
+  attribute vec3 aRandom;
+  varying float vAlpha;
+
+  void main() {
+    vec3 pos = position;
+    
+    // Fall down
+    pos.y = mod(pos.y - uTime * aSpeed, 40.0) - 5.0;
+    
+    // Horizontal drift (turbulence)
+    pos.x += sin(uTime * aSpeed * 0.5 + aRandom.x * 10.0) * 0.5;
+    pos.z += cos(uTime * aSpeed * 0.3 + aRandom.z * 10.0) * 0.5;
+
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    
+    // Size attenuation
+    gl_PointSize = (uSize * aSize) * (20.0 / -mvPosition.z);
+    
+    // Fade out at bottom
+    vAlpha = smoothstep(-5.0, 0.0, pos.y);
+  }
+`;
+
+const snowFragmentShader = `
+  varying float vAlpha;
+  
+  void main() {
+    // Circular particle
+    vec2 center = gl_PointCoord - 0.5;
+    float dist = length(center);
+    if (dist > 0.5) discard;
+    
+    // Soft edge
+    float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+    gl_FragColor = vec4(1.0, 1.0, 1.0, alpha * vAlpha * 0.8);
+  }
+`;
+
+// --- Components ---
+
+const SnowSystem = () => {
+  const count = 15000;
+  const mesh = useRef<THREE.Points>(null!);
+  const material = useRef<THREE.ShaderMaterial>(null!);
+
+  const { positions, speeds, sizes, randoms } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const speeds = new Float32Array(count);
+    const sizes = new Float32Array(count);
+    const randoms = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 150; // x
+      positions[i * 3 + 1] = Math.random() * 40 - 5; // y
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 150; // z
+
+      speeds[i] = 1 + Math.random() * 3;
+      sizes[i] = 0.5 + Math.random() * 1.5;
+      
+      randoms[i * 3] = Math.random();
+      randoms[i * 3 + 1] = Math.random();
+      randoms[i * 3 + 2] = Math.random();
+    }
+    return { positions, speeds, sizes, randoms };
+  }, []);
+
+  useFrame((state) => {
+    if (material.current) {
+      material.current.uniforms.uTime.value = state.clock.getElapsedTime();
+    }
+  });
+
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uSize: { value: 2.0 }
+  }), []);
+
+  return (
+    <points ref={mesh}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aSpeed" count={count} array={speeds} itemSize={1} args={[speeds, 1]} />
+        <bufferAttribute attach="attributes-aSize" count={count} array={sizes} itemSize={1} args={[sizes, 1]} />
+        <bufferAttribute attach="attributes-aRandom" count={count} array={randoms} itemSize={3} args={[randoms, 3]} />
+      </bufferGeometry>
+      <shaderMaterial
+        ref={material}
+        vertexShader={snowVertexShader}
+        fragmentShader={snowFragmentShader}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  );
 };
 
-const CityGrid = () => {
-  const { blockGeo, blockPos } = useMemo(() => {
-    const positions: number[] = [];
-    const geometries: THREE.BufferGeometry[] = [];
+
+
+const City = () => {
+  const genericMesh = useRef<THREE.InstancedMesh>(null!);
+  const lightMesh = useRef<THREE.InstancedMesh>(null!);
+  
+  // Landmark refs
+  const empireRef = useRef<THREE.Mesh>(null!);
+  const chryslerRef = useRef<THREE.Mesh>(null!);
+  const park432Ref = useRef<THREE.Mesh>(null!);
+  const vanderbiltRef = useRef<THREE.Mesh>(null!);
+
+  const { genericData, lightData } = useMemo(() => {
+    const genericInstances: THREE.Matrix4[] = [];
+    const lightInstances: THREE.Matrix4[] = [];
+    const dummy = new THREE.Object3D();
+
+    // Central Park Dimensions: 40 wide (X), 200 long (Z)
+    // Park X range: -20 to 20
+    // Park Z range: -100 to 100
     
-    // Generate Grid: 59th to 110th St (Park length) + buffer
-    for (let st = 55; st <= 115; st++) {
-      for (let ave = 4; ave <= 9; ave++) { // 5th to 8th + buffer
+    // 1. Central Park South (Midtown) - Z > 100
+    // High density, supertalls
+    for (let x = -60; x <= 60; x += 6) {
+      for (let z = 105; z <= 150; z += 6) {
+        if (Math.random() > 0.8) continue; // Some gaps
         
-        // Check if inside Central Park (59-110, 5th-8th Ave)
-        const isPark = (st >= 59 && st < 110) && (ave >= 5 && ave < 8);
+        const scaleY = 20 + Math.random() * 40; // Tall buildings
+        dummy.position.set(x, scaleY / 2, z);
+        dummy.rotation.y = 0;
+        dummy.scale.set(4, scaleY / 2, 4);
+        dummy.updateMatrix();
+        genericInstances.push(dummy.matrix.clone());
         
-        if (!isPark) {
-          const [x, y, z] = getAddressPosition(st, ave);
-          positions.push(x, 0, z);
+        // Lights
+        if (Math.random() > 0.2) {
+          dummy.scale.set(3, scaleY * 0.8, 3);
+          dummy.updateMatrix();
+          lightInstances.push(dummy.matrix.clone());
         }
       }
     }
-    return { blockGeo: new THREE.BoxGeometry(8, 2, 2.5), blockPos: positions };
+
+    // 2. Central Park West (Residential) - X < -20
+    // Twin towers, uniform height wall
+    for (let z = -100; z <= 100; z += 8) {
+      // Front row (The Wall)
+      const scaleY = 15 + Math.random() * 10;
+      dummy.position.set(-25, scaleY / 2, z);
+      dummy.rotation.y = 0;
+      dummy.scale.set(5, scaleY / 2, 6);
+      dummy.updateMatrix();
+      genericInstances.push(dummy.matrix.clone());
+      
+      // Lights
+      if (Math.random() > 0.3) {
+        dummy.scale.set(4, scaleY * 0.8, 5);
+        dummy.updateMatrix();
+        lightInstances.push(dummy.matrix.clone());
+      }
+
+      // Back rows
+      for (let x = -35; x >= -80; x -= 8) {
+        if (Math.random() > 0.6) continue;
+        const h = 10 + Math.random() * 15;
+        dummy.position.set(x, h / 2, z);
+        dummy.scale.set(5, h / 2, 5);
+        dummy.updateMatrix();
+        genericInstances.push(dummy.matrix.clone());
+      }
+    }
+
+    // 3. Fifth Avenue (Museum Mile) - X > 20
+    // Continuous limestone wall, lower height
+    for (let z = -100; z <= 100; z += 8) {
+      // Front row
+      const scaleY = 12 + Math.random() * 5; // Lower, uniform
+      dummy.position.set(25, scaleY / 2, z);
+      dummy.rotation.y = 0;
+      dummy.scale.set(5, scaleY / 2, 6);
+      dummy.updateMatrix();
+      genericInstances.push(dummy.matrix.clone());
+      
+      // Lights
+      if (Math.random() > 0.3) {
+        dummy.scale.set(4, scaleY * 0.8, 5);
+        dummy.updateMatrix();
+        lightInstances.push(dummy.matrix.clone());
+      }
+
+      // Back rows (Upper East Side)
+      for (let x = 35; x <= 80; x += 8) {
+        if (Math.random() > 0.6) continue;
+        const h = 8 + Math.random() * 12;
+        dummy.position.set(x, h / 2, z);
+        dummy.scale.set(5, h / 2, 5);
+        dummy.updateMatrix();
+        genericInstances.push(dummy.matrix.clone());
+      }
+    }
+    
+    return { 
+      genericData: genericInstances,
+      lightData: lightInstances
+    };
   }, []);
 
-  // Use ref to update instance matrices
-  const meshRef = useMemo(() => {
-    return (node: THREE.InstancedMesh | null) => {
-      if (node) {
-        const tempObject = new THREE.Object3D();
-        for (let i = 0; i < blockPos.length / 3; i++) {
-          tempObject.position.set(blockPos[i * 3], blockPos[i * 3 + 1], blockPos[i * 3 + 2]);
-          tempObject.updateMatrix();
-          node.setMatrixAt(i, tempObject.matrix);
-        }
-        node.instanceMatrix.needsUpdate = true;
-      }
-    };
-  }, [blockPos]);
+  useEffect(() => {
+    if (genericMesh.current) {
+      genericData.forEach((matrix, i) => genericMesh.current.setMatrixAt(i, matrix));
+      genericMesh.current.instanceMatrix.needsUpdate = true;
+    }
+    if (lightMesh.current) {
+      lightData.forEach((matrix, i) => lightMesh.current.setMatrixAt(i, matrix));
+      lightMesh.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [genericData, lightData]);
 
-  return (
-    <instancedMesh ref={meshRef} args={[blockGeo, undefined, blockPos.length / 3]}>
-      <meshBasicMaterial color={COLORS.block} />
-      <Edges color={COLORS.blockOutline} threshold={15} />
-    </instancedMesh>
-  );
-};
+  // Geometries
+  const steppedGeo = useMemo(() => createSteppedBuildingGeometry(), []);
+  const empireGeo = useMemo(() => LandmarkGeometries.EmpireState(), []);
+  const chryslerGeo = useMemo(() => LandmarkGeometries.Chrysler(), []);
+  const park432Geo = useMemo(() => LandmarkGeometries.Park432(), []);
+  const vanderbiltGeo = useMemo(() => LandmarkGeometries.OneVanderbilt(), []);
 
-const AccurateLandmarks = () => {
   return (
     <group>
-      {landmarkData.map((l, i) => {
-        const [x, y, z] = getAddressPosition(l.address.st, l.address.ave);
-        
-        // Simple geometry mapping based on shape type
-        let geo;
-        if (l.shape === 'spiral') geo = <cylinderGeometry args={[2, 2, l.height, 16]} />;
-        else if (l.shape === 'thin') geo = <boxGeometry args={[2, l.height, 2]} />;
-        else geo = <boxGeometry args={[6, l.height, 6]} />;
+      {/* Generic City Grid */}
+      <instancedMesh ref={genericMesh} args={[undefined, undefined, genericData.length]}>
+        <primitive object={steppedGeo} />
+        <meshStandardMaterial color="#b0c4de" roughness={0.6} metalness={0.1} />
+      </instancedMesh>
 
-        return (
-          <mesh key={i} position={[x, l.height/2, z]}>
-            {geo}
-            <meshBasicMaterial color={l.color} transparent opacity={0.9} />
-            <Edges color="#ffffff" />
-          </mesh>
-        );
-      })}
+      {/* Window Lights */}
+      <instancedMesh ref={lightMesh} args={[undefined, undefined, lightData.length]}>
+        <boxGeometry />
+        <meshBasicMaterial color="#ffd700" />
+      </instancedMesh>
+
+      {/* --- REAL Central Park Landmarks --- */}
+
+      {/* Central Park West: The San Remo (Twin Towers) */}
+      <mesh geometry={useMemo(() => SanRemo(), [])} position={[-45, 0, 20]} rotation={[0, Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
+        <meshStandardMaterial color="#eecfa1" roughness={0.8} />
+      </mesh>
+
+      {/* Central Park West: The Dakota */}
+      <mesh geometry={useMemo(() => TheDakota(), [])} position={[-45, 0, -20]} rotation={[0, Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
+        <meshStandardMaterial color="#8b4513" roughness={0.9} />
+      </mesh>
+
+      {/* Fifth Avenue: The Guggenheim (Spiral) */}
+      <mesh geometry={useMemo(() => Guggenheim(), [])} position={[45, 0, -40]} rotation={[0, -Math.PI/2, 0]} scale={[1.2, 1.2, 1.2]}>
+        <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
+      </mesh>
+
+      {/* Fifth Avenue: The Met Museum */}
+      <mesh geometry={useMemo(() => TheMet(), [])} position={[45, 0, 10]} rotation={[0, -Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
+        <meshStandardMaterial color="#d3d3d3" roughness={0.8} />
+      </mesh>
+
+      {/* Central Park South: The Plaza Hotel */}
+      <mesh geometry={useMemo(() => ThePlaza(), [])} position={[10, 0, 105]} rotation={[0, 0, 0]} scale={[1.8, 1.8, 1.8]}>
+        <meshStandardMaterial color="#fffdd0" roughness={0.7} />
+      </mesh>
+
+      {/* --- Iconic Landmarks (South End / Midtown) --- */}
+      
+      {/* Empire State Building (South Center, further back) */}
+      <mesh ref={empireRef} geometry={empireGeo || undefined} position={[0, 0, 130]} scale={[3, 3, 3]}>
+        <meshStandardMaterial color="#ff99aa" roughness={0.8} metalness={0} />
+      </mesh>
+
+      {/* Chrysler Building (South East) */}
+      <mesh ref={chryslerRef} geometry={chryslerGeo || undefined} position={[30, 0, 140]} scale={[2.5, 2.5, 2.5]}>
+        <meshStandardMaterial color="#aaddff" roughness={0.8} metalness={0} />
+      </mesh>
+
+      {/* 432 Park Avenue (South East, prominent) */}
+      <mesh ref={park432Ref} geometry={park432Geo || undefined} position={[15, 0, 110]} scale={[2, 2, 2]}>
+        <meshStandardMaterial color="#eeeeee" roughness={0.8} metalness={0} />
+      </mesh>
+
+      {/* One Vanderbilt (South West) */}
+      <mesh ref={vanderbiltRef} geometry={vanderbiltGeo || undefined} position={[-20, 0, 120]} scale={[2.5, 2.5, 2.5]}>
+        <meshStandardMaterial color="#99ccff" roughness={0.8} metalness={0} />
+      </mesh>
+
     </group>
   );
 };
 
-const ParkZone = () => {
-  // Central Park Rectangle (approx dimensions in grid units)
-  // Width: 3 blocks (approx 24 units)
-  // Length: 51 blocks (approx 127 units)
+const Trees = () => {
+  const mesh = useRef<THREE.InstancedMesh>(null!);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const treeData = useMemo(() => {
+    const instances: THREE.Matrix4[] = [];
+    // Place trees INSIDE the park void (40x200)
+    for (let i = 0; i < 1000; i++) {
+      const x = (Math.random() - 0.5) * 36; // Keep inside -18 to 18
+      const z = (Math.random() - 0.5) * 190; // Keep inside -95 to 95
+      
+      // Avoid Reservoir (North)
+      const reservoirDist = Math.sqrt(Math.pow(x * 1.5, 2) + Math.pow((z + 50) * 0.8, 2));
+      if (reservoirDist < 16) continue;
+
+      // Avoid Lake (South)
+      const lakeDist = Math.sqrt(Math.pow(x, 2) + Math.pow((z - 30), 2));
+      if (lakeDist < 12) continue;
+
+      dummy.position.set(x, 0.5, z); // Slightly raised on terrain
+      const scale = 0.5 + Math.random() * 0.5;
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix();
+      instances.push(dummy.matrix.clone());
+    }
+    return instances;
+  }, []);
+
+  useEffect(() => {
+    if (mesh.current) {
+      treeData.forEach((matrix, i) => mesh.current.setMatrixAt(i, matrix));
+      mesh.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [treeData]);
+
   return (
-    <group position={[0, 0.1, -10]}> {/* Centered approx */}
-      {/* Main Park Base */}
-      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[26, 130]} />
-        <meshBasicMaterial color={COLORS.park} />
-      </mesh>
-      
-      {/* The Reservoir (Abstract shape) */}
-      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, -30]}>
-        <circleGeometry args={[8, 32]} />
-        <meshBasicMaterial color={COLORS.water} />
-      </mesh>
-      
-      {/* The Lake */}
-      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 30]}>
-        <circleGeometry args={[5, 32]} />
-        <meshBasicMaterial color={COLORS.water} />
-      </mesh>
-    </group>
+    <instancedMesh ref={mesh} args={[undefined, undefined, treeData.length]}>
+      <coneGeometry args={[1, 4, 8]} />
+      <meshStandardMaterial color="#ddeeff" roughness={0.8} />
+    </instancedMesh>
   );
 };
 
 export default function Scene() {
   return (
-    <div className="w-full h-screen bg-[#f0f2f5]">
-      <Canvas orthographic camera={{ position: [100, 100, 100], zoom: 5, near: -200, far: 500 }}>
-        <color attach="background" args={[COLORS.bg]} />
+    <div className="w-full h-screen bg-black">
+      <Canvas orthographic camera={{ position: [100, 100, 100], zoom: 10, near: -200, far: 500 }}>
+        {/* Pastel Gradient Background */}
+        <color attach="background" args={['#ffd1dc']} />
         
         <OrbitControls 
-          enableRotate={false} // Lock rotation for pure map view (optional)
-          enablePan={true}
-          minZoom={2}
+          enablePan={true} 
+          maxPolarAngle={Math.PI / 2.2} 
+          minZoom={5}
           maxZoom={20}
+          autoRotate
+          autoRotateSpeed={0.5}
         />
 
-        <group rotation={[0, -Math.PI/4, 0]}> {/* Rotate to align with screen */}
-          <CityGrid />
-          <AccurateLandmarks />
-          <ParkZone />
+        {/* Soft, Warm Lighting for Pastel Look */}
+        <ambientLight intensity={0.8} color="#ffffff" />
+        <directionalLight position={[50, 100, 50]} intensity={1.2} color="#fff0dd" castShadow shadow-mapSize={[2048, 2048]} />
+        <pointLight position={[-50, 50, -50]} intensity={0.5} color="#dbeeff" />
+        
+        <Environment preset="night" />
+        
+        <group>
+          <group position={[0, 5, 0]}>
+            <City />
+            <Trees />
+            <ParkTerrain />
+            <SnowSystem />
+          </group>
+          <FloatingPlatform />
         </group>
 
+        {/* Removed heavy post-processing for clean vector/toy look */}
       </Canvas>
-      
-      {/* Map Legend / UI Overlay */}
-      <div className="absolute bottom-8 left-8 bg-white/90 p-6 rounded-none border border-pink-200 backdrop-blur-sm">
-        <h1 className="text-2xl font-serif text-pink-900 mb-2">Central Park</h1>
-        <p className="text-xs font-sans text-pink-700 uppercase tracking-widest mb-4">Accessibility & Amenities</p>
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-3 h-3 bg-[#e64980]"></div>
-          <span className="text-xs text-gray-600">Park Zone</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-[#d6336c]"></div>
-          <span className="text-xs text-gray-600">Landmarks</span>
-        </div>
-      </div>
     </div>
   );
 }
