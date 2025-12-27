@@ -1,21 +1,22 @@
-import { Cloud, Environment, OrbitControls, Stars } from "@react-three/drei";
+import { Cloud, Environment, OrbitControls, Stars, Float } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, Vignette, ToneMapping } from "@react-three/postprocessing";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
-// --- Procedural 3D Snow ---
-function Snow({ count = 4000 }) {
+// --- Cinematic Snow System ---
+function Snow({ count = 8000 }) {
   const mesh = useRef<THREE.Points>(null!);
   
   const particles = useMemo(() => {
     const temp = [];
     for (let i = 0; i < count; i++) {
-      const x = (Math.random() - 0.5) * 120;
-      const y = Math.random() * 60;
-      const z = (Math.random() - 0.5) * 120;
-      const speed = 0.05 + Math.random() * 0.15;
-      temp.push({ x, y, z, speed });
+      const x = (Math.random() - 0.5) * 150;
+      const y = Math.random() * 80;
+      const z = (Math.random() - 0.5) * 150;
+      const speed = 0.02 + Math.random() * 0.1;
+      const size = Math.random() * 0.3;
+      temp.push({ x, y, z, speed, size });
     }
     return temp;
   }, [count]);
@@ -30,17 +31,24 @@ function Snow({ count = 4000 }) {
     return pos;
   }, [particles, count]);
 
-  useFrame(() => {
+  useFrame((state) => {
     if (!mesh.current) return;
     const positions = mesh.current.geometry.attributes.position.array as Float32Array;
+    const time = state.clock.getElapsedTime();
+    
     for (let i = 0; i < count; i++) {
-      positions[i * 3 + 1] -= particles[i].speed; // Fall down
-      positions[i * 3] += Math.sin(Date.now() * 0.001 + i) * 0.02; // Drift X
+      // Fall down
+      positions[i * 3 + 1] -= particles[i].speed;
       
+      // Complex turbulence
+      positions[i * 3] += Math.sin(time * 0.5 + particles[i].y) * 0.02;
+      positions[i * 3 + 2] += Math.cos(time * 0.3 + particles[i].x) * 0.02;
+      
+      // Reset loop
       if (positions[i * 3 + 1] < 0) {
-        positions[i * 3 + 1] = 60;
-        positions[i * 3] = (Math.random() - 0.5) * 120;
-        positions[i * 3 + 2] = (Math.random() - 0.5) * 120;
+        positions[i * 3 + 1] = 80;
+        positions[i * 3] = (Math.random() - 0.5) * 150;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 150;
       }
     }
     mesh.current.geometry.attributes.position.needsUpdate = true;
@@ -57,26 +65,35 @@ function Snow({ count = 4000 }) {
           args={[positions, 3]}
         />
       </bufferGeometry>
-      <pointsMaterial size={0.25} color="#ffffff" transparent opacity={0.9} />
+      <pointsMaterial 
+        size={0.2} 
+        color="#ffffff" 
+        transparent 
+        opacity={0.8} 
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
     </points>
   );
 }
 
-// --- 3D Procedural City ---
-function City() {
+// --- Futuristic Ice City ---
+function IceCity() {
   const buildings = useMemo(() => {
     const items = [];
-    // Create a dense ring of buildings
-    for (let i = 0; i < 80; i++) {
-      const angle = (i / 80) * Math.PI * 2;
-      const radius = 45 + Math.random() * 25; // Distance from center
+    // Create a majestic skyline curve
+    for (let i = 0; i < 40; i++) {
+      const angle = (i / 40) * Math.PI * 2;
+      // Irregular placement for organic city feel
+      const radius = 60 + Math.random() * 30; 
       const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      const width = 5 + Math.random() * 8;
-      const depth = 5 + Math.random() * 8;
-      const height = 30 + Math.random() * 50;
-      const color = Math.random() > 0.5 ? "#1a202c" : "#2d3748"; // Dark slate/blueish greys
-      items.push({ position: [x, height / 2, z], args: [width, height, depth], color });
+      const z = Math.sin(angle) * radius * 0.6; // Elliptical layout
+      
+      const width = 8 + Math.random() * 10;
+      const depth = 8 + Math.random() * 10;
+      const height = 40 + Math.random() * 100; // Very tall skyscrapers
+      
+      items.push({ position: [x, height / 2 - 5, z], args: [width, height, depth] });
     }
     return items;
   }, []);
@@ -86,11 +103,23 @@ function City() {
       {buildings.map((b, i) => (
         <mesh key={i} position={b.position as [number, number, number]}>
           <boxGeometry args={b.args as [number, number, number]} />
-          <meshStandardMaterial color={b.color} roughness={0.1} metalness={0.6} />
-          {/* Windows (emissive specks) */}
-          <mesh position={[0, 0, 0]} scale={[1.01, 1.01, 1.01]}>
-             <boxGeometry args={b.args as [number, number, number]} />
-             <meshBasicMaterial color="#ffeb3b" wireframe transparent opacity={0.03} />
+          {/* Ice/Glass Material */}
+          <meshPhysicalMaterial 
+            color="#e0f7fa"
+            transmission={0.9} // Glass-like transmission
+            opacity={1}
+            metalness={0.1}
+            roughness={0.1}
+            ior={1.5} // Index of refraction for glass
+            thickness={5} // Volume thickness
+            envMapIntensity={1.5}
+            clearcoat={1}
+            clearcoatRoughness={0.1}
+          />
+          {/* Internal glowing core for futuristic look */}
+          <mesh scale={[0.8, 0.98, 0.8]}>
+            <boxGeometry args={b.args as [number, number, number]} />
+            <meshBasicMaterial color="#4fc3f7" transparent opacity={0.1} blending={THREE.AdditiveBlending} />
           </mesh>
         </mesh>
       ))}
@@ -98,145 +127,127 @@ function City() {
   );
 }
 
-// --- 3D Tree ---
-function Tree({ position }: { position: [number, number, number] }) {
-  const scale = 0.8 + Math.random() * 0.6;
+// --- Frozen Lake Surface ---
+function FrozenLake() {
   return (
-    <group position={position} scale={[scale, scale, scale]}>
-      {/* Trunk */}
-      <mesh position={[0, 1, 0]} castShadow>
-        <cylinderGeometry args={[0.2, 0.4, 2, 8]} />
-        <meshStandardMaterial color="#3e2723" roughness={1} />
-      </mesh>
-      {/* Leaves (Snow covered cones) */}
-      <mesh position={[0, 2.5, 0]} castShadow receiveShadow>
-        <coneGeometry args={[1.8, 2.5, 8]} />
-        <meshStandardMaterial color="#e0f7fa" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 4.0, 0]} castShadow receiveShadow>
-        <coneGeometry args={[1.4, 2.2, 8]} />
-        <meshStandardMaterial color="#e0f7fa" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 5.2, 0]} castShadow receiveShadow>
-        <coneGeometry args={[0.9, 1.8, 8]} />
-        <meshStandardMaterial color="#e0f7fa" roughness={0.8} />
-      </mesh>
-    </group>
-  );
-}
-
-// --- 3D Snowman ---
-function Snowman({ position }: { position: [number, number, number] }) {
-  return (
-    <group position={position}>
-      {/* Body Bottom */}
-      <mesh position={[0, 0.6, 0]} castShadow receiveShadow>
-        <sphereGeometry args={[0.7, 32, 32]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.3} />
-      </mesh>
-      {/* Body Middle */}
-      <mesh position={[0, 1.5, 0]} castShadow receiveShadow>
-        <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.3} />
-      </mesh>
-      {/* Head */}
-      <mesh position={[0, 2.2, 0]} castShadow receiveShadow>
-        <sphereGeometry args={[0.35, 32, 32]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.3} />
-      </mesh>
-      {/* Nose */}
-      <mesh position={[0, 2.2, 0.3]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <coneGeometry args={[0.06, 0.25, 8]} />
-        <meshStandardMaterial color="#ff6f00" />
-      </mesh>
-      {/* Eyes */}
-      <mesh position={[-0.12, 2.3, 0.28]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshStandardMaterial color="#212121" />
-      </mesh>
-      <mesh position={[0.12, 2.3, 0.28]}>
-        <sphereGeometry args={[0.04, 8, 8]} />
-        <meshStandardMaterial color="#212121" />
-      </mesh>
-      {/* Arms */}
-      <mesh position={[0.45, 1.6, 0]} rotation={[0, 0, -Math.PI / 3]} castShadow>
-        <cylinderGeometry args={[0.03, 0.03, 0.9]} />
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
-      <mesh position={[-0.45, 1.6, 0]} rotation={[0, 0, Math.PI / 3]} castShadow>
-        <cylinderGeometry args={[0.03, 0.03, 0.9]} />
-        <meshStandardMaterial color="#3e2723" />
-      </mesh>
-    </group>
-  );
-}
-
-// --- Ground ---
-function Ground() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[300, 300]} />
-      <meshStandardMaterial color="#eceff1" roughness={0.9} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]} receiveShadow>
+      <circleGeometry args={[120, 64]} />
+      <meshPhysicalMaterial 
+        color="#b3e5fc"
+        metalness={0.2}
+        roughness={0.15}
+        transmission={0.2}
+        clearcoat={1}
+        clearcoatRoughness={0.05}
+        envMapIntensity={1.2}
+      />
     </mesh>
   );
 }
 
-export default function Scene() {
-  // Generate random tree positions
+// --- Abstract Ice Sculpture (Centerpiece) ---
+function IceSculpture() {
+  return (
+    <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
+      <group position={[0, 4, 0]}>
+        <mesh castShadow>
+          <octahedronGeometry args={[3, 0]} />
+          <meshPhysicalMaterial 
+            color="#ffffff"
+            transmission={0.95}
+            roughness={0}
+            metalness={0.1}
+            ior={2.0} // Diamond-like
+            thickness={10}
+            envMapIntensity={2}
+          />
+        </mesh>
+        {/* Inner glow */}
+        <pointLight color="#00e5ff" intensity={2} distance={20} decay={2} />
+      </group>
+    </Float>
+  );
+}
+
+// --- Crystal Trees ---
+function CrystalTrees() {
   const trees = useMemo(() => {
     const items = [];
-    for (let i = 0; i < 60; i++) {
-      const x = (Math.random() - 0.5) * 70;
-      const z = (Math.random() - 0.5) * 70;
-      // Keep center clear for the snowman
-      if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
-      items.push([x, 0, z]);
+    for (let i = 0; i < 30; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = 15 + Math.random() * 35;
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+      const scale = 0.5 + Math.random() * 1;
+      items.push({ pos: [x, 0, z], scale });
     }
     return items;
   }, []);
 
   return (
-    <Canvas shadows camera={{ position: [0, 6, 18], fov: 55 }}>
-      <color attach="background" args={['#b0bec5']} />
-      <fog attach="fog" args={['#b0bec5', 15, 70]} />
+    <group>
+      {trees.map((t, i) => (
+        <group key={i} position={t.pos as [number, number, number]} scale={[t.scale, t.scale, t.scale]}>
+          <mesh position={[0, 2, 0]} castShadow>
+            <coneGeometry args={[1, 4, 4]} />
+            <meshPhysicalMaterial 
+              color="#e1f5fe"
+              transmission={0.6}
+              roughness={0.2}
+              metalness={0.5}
+              thickness={2}
+            />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export default function Scene() {
+  return (
+    <Canvas shadows camera={{ position: [0, 5, 25], fov: 45 }}>
+      {/* Environment for reflections */}
+      <Environment preset="city" />
+      
+      <color attach="background" args={['#0a192f']} />
+      <fog attach="fog" args={['#0a192f', 20, 100]} />
       
       <OrbitControls 
-        maxPolarAngle={Math.PI / 2 - 0.05} // Prevent going below ground
-        minDistance={5}
-        maxDistance={60}
+        maxPolarAngle={Math.PI / 2 - 0.02}
+        minDistance={10}
+        maxDistance={80}
         autoRotate
-        autoRotateSpeed={0.3}
+        autoRotateSpeed={0.2}
         enableDamping
       />
 
-      <ambientLight intensity={0.4} color="#cfd8dc" />
+      {/* Lighting */}
+      <ambientLight intensity={0.4} color="#4fc3f7" />
       <directionalLight 
-        position={[20, 30, 10]} 
-        intensity={1.2} 
+        position={[-30, 50, -30]} 
+        intensity={3} 
+        color="#e0f7fa"
         castShadow 
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
+        shadow-bias={-0.0001}
       />
-      
-      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-      <Cloud opacity={0.4} speed={0.2} segments={20} position={[0, 25, -10]} />
+      <pointLight position={[0, 10, 0]} intensity={1} color="#00bcd4" />
+
+      <Stars radius={150} depth={50} count={7000} factor={4} saturation={0} fade speed={0.5} />
+      <Cloud opacity={0.3} speed={0.1} segments={10} position={[0, 40, -50]} color="#eceff1" />
 
       <group>
-        <City />
-        <Ground />
-        {trees.map((pos, i) => (
-          <Tree key={i} position={pos as [number, number, number]} />
-        ))}
-        <Snowman position={[0, 0, 0]} />
-        <Snow count={6000} />
+        <IceCity />
+        <FrozenLake />
+        <IceSculpture />
+        <CrystalTrees />
+        <Snow count={10000} />
       </group>
 
       <EffectComposer>
-        <Bloom luminanceThreshold={0.8} luminanceSmoothing={0.9} height={300} intensity={0.5} />
-        <Vignette eskil={false} offset={0.1} darkness={0.5} />
+        <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.8} height={300} intensity={1.2} />
+        <Vignette eskil={false} offset={0.1} darkness={0.6} />
+        <ToneMapping />
       </EffectComposer>
     </Canvas>
   );
