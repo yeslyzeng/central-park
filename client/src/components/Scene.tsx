@@ -1,159 +1,244 @@
-import { Cloud, Environment, OrbitControls, Stars, Float, PerspectiveCamera } from "@react-three/drei";
+import { Cloud, Environment, OrbitControls, Stars, Float } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette, ToneMapping } from "@react-three/postprocessing";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
 
-// --- Cinematic Snow System ---
-function Snow({ count = 12000 }) {
-  const mesh = useRef<THREE.Points>(null!);
+// --- GPU Optimized Snow Shader ---
+const snowVertexShader = `
+  uniform float uTime;
+  uniform float uHeight;
+  attribute float aSpeed;
+  attribute float aSize;
+  attribute vec3 aRandom;
   
-  const particles = useMemo(() => {
-    const temp = [];
-    for (let i = 0; i < count; i++) {
-      const x = (Math.random() - 0.5) * 300;
-      const y = Math.random() * 100;
-      const z = (Math.random() - 0.5) * 300;
-      const speed = 0.05 + Math.random() * 0.2;
-      const size = Math.random() * 0.4;
-      temp.push({ x, y, z, speed, size });
-    }
-    return temp;
-  }, [count]);
+  void main() {
+    vec3 pos = position;
+    
+    // Fall down based on time and speed
+    pos.y = position.y - uTime * aSpeed;
+    
+    // Wrap around height
+    pos.y = mod(pos.y, uHeight);
+    
+    // Add turbulence
+    pos.x += sin(uTime * 0.5 + aRandom.y) * 0.5;
+    pos.z += cos(uTime * 0.3 + aRandom.x) * 0.5;
+    
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    gl_PointSize = aSize * (300.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
 
-  const positions = useMemo(() => {
+const snowFragmentShader = `
+  void main() {
+    float r = distance(gl_PointCoord, vec2(0.5));
+    if (r > 0.5) discard;
+    float alpha = 1.0 - (r * 2.0);
+    gl_FragColor = vec4(1.0, 1.0, 1.0, alpha * 0.8);
+  }
+`;
+
+function Snow({ count = 15000 }) {
+  const mesh = useRef<THREE.Points>(null!);
+  const material = useRef<THREE.ShaderMaterial>(null!);
+  
+  const [positions, speeds, sizes, randoms] = useMemo(() => {
     const pos = new Float32Array(count * 3);
-    particles.forEach((p, i) => {
-      pos[i * 3] = p.x;
-      pos[i * 3 + 1] = p.y;
-      pos[i * 3 + 2] = p.z;
-    });
-    return pos;
-  }, [particles, count]);
-
-  useFrame((state) => {
-    if (!mesh.current) return;
-    const positions = mesh.current.geometry.attributes.position.array as Float32Array;
-    const time = state.clock.getElapsedTime();
+    const spd = new Float32Array(count);
+    const sz = new Float32Array(count);
+    const rnd = new Float32Array(count * 3);
     
     for (let i = 0; i < count; i++) {
-      // Fall down
-      positions[i * 3 + 1] -= particles[i].speed;
+      pos[i * 3] = (Math.random() - 0.5) * 300;
+      pos[i * 3 + 1] = Math.random() * 100;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 300;
       
-      // Complex turbulence
-      positions[i * 3] += Math.sin(time * 0.5 + particles[i].y) * 0.03;
-      positions[i * 3 + 2] += Math.cos(time * 0.3 + particles[i].x) * 0.03;
+      spd[i] = 2.0 + Math.random() * 5.0; // Faster fall speed for shader
+      sz[i] = 0.5 + Math.random() * 1.5;
       
-      // Reset loop
-      if (positions[i * 3 + 1] < 0) {
-        positions[i * 3 + 1] = 100;
-        positions[i * 3] = (Math.random() - 0.5) * 300;
-        positions[i * 3 + 2] = (Math.random() - 0.5) * 300;
-      }
+      rnd[i * 3] = Math.random() * 10;
+      rnd[i * 3 + 1] = Math.random() * 10;
+      rnd[i * 3 + 2] = Math.random() * 10;
     }
-    mesh.current.geometry.attributes.position.needsUpdate = true;
+    return [pos, spd, sz, rnd];
+  }, [count]);
+
+  useFrame((state) => {
+    if (material.current) {
+      material.current.uniforms.uTime.value = state.clock.getElapsedTime();
+    }
   });
 
   return (
     <points ref={mesh}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-          args={[positions, 3]}
-        />
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aSpeed" count={count} array={speeds} itemSize={1} args={[speeds, 1]} />
+        <bufferAttribute attach="attributes-aSize" count={count} array={sizes} itemSize={1} args={[sizes, 1]} />
+        <bufferAttribute attach="attributes-aRandom" count={count} array={randoms} itemSize={3} args={[randoms, 3]} />
       </bufferGeometry>
-      <pointsMaterial 
-        size={0.2} 
-        color="#ffffff" 
-        transparent 
-        opacity={0.9} 
-        blending={THREE.AdditiveBlending}
+      <shaderMaterial
+        ref={material}
+        vertexShader={snowVertexShader}
+        fragmentShader={snowFragmentShader}
+        transparent
         depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        uniforms={{
+          uTime: { value: 0 },
+          uHeight: { value: 100 }
+        }}
       />
     </points>
   );
 }
 
-// --- Central Park City Layout ---
+// --- Instanced City Layout ---
 function CentralParkCity() {
-  const buildings = useMemo(() => {
+  const meshRef = useRef<THREE.InstancedMesh>(null!);
+  const lightMeshRef = useRef<THREE.InstancedMesh>(null!);
+  const count = 600; // Total max buildings
+  
+  const { buildings, lightTransforms } = useMemo(() => {
     const items = [];
+    const lights = [];
     const parkWidth = 60;
     const parkLength = 150;
+    const dummy = new THREE.Object3D();
+    const dummyLight = new THREE.Object3D();
     
+    let idx = 0;
     // Generate grid of buildings around the park
-    for (let x = -150; x <= 150; x += 15) {
-      for (let z = -150; z <= 150; z += 15) {
+    for (let x = -150; x <= 150; x += 12) {
+      for (let z = -150; z <= 150; z += 12) {
+        if (idx >= count) break;
+        
         // Create the "Central Park" void
         if (Math.abs(x) < parkWidth / 2 && Math.abs(z) < parkLength / 2) continue;
         
         // Randomize position slightly
-        const posX = x + (Math.random() - 0.5) * 5;
-        const posZ = z + (Math.random() - 0.5) * 5;
+        const posX = x + (Math.random() - 0.5) * 4;
+        const posZ = z + (Math.random() - 0.5) * 4;
         
-        const width = 8 + Math.random() * 6;
-        const depth = 8 + Math.random() * 6;
+        const width = 6 + Math.random() * 5;
+        const depth = 6 + Math.random() * 5;
         
         // Taller buildings closer to the park edge
         const distToPark = Math.min(Math.abs(Math.abs(x) - parkWidth/2), Math.abs(Math.abs(z) - parkLength/2));
         const heightBase = Math.max(20, 120 - distToPark * 0.8);
         const height = heightBase + Math.random() * 60;
         
-        items.push({ position: [posX, height / 2 - 2, posZ], args: [width, height, depth] });
+        dummy.position.set(posX, height / 2 - 2, posZ);
+        dummy.scale.set(width, height, depth);
+        dummy.updateMatrix();
+        items.push(dummy.matrix.clone());
+        
+        // Interior light mesh (slightly smaller)
+        dummyLight.position.set(posX, height / 2 - 2, posZ);
+        dummyLight.scale.set(width * 0.9, height * 0.98, depth * 0.9);
+        dummyLight.updateMatrix();
+        lights.push(dummyLight.matrix.clone());
+        
+        idx++;
       }
+    }
+    return { buildings: items, lightTransforms: lights };
+  }, []);
+
+  useEffect(() => {
+    if (meshRef.current) {
+      buildings.forEach((matrix, i) => {
+        meshRef.current.setMatrixAt(i, matrix);
+      });
+      meshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (lightMeshRef.current) {
+      lightTransforms.forEach((matrix, i) => {
+        lightMeshRef.current.setMatrixAt(i, matrix);
+      });
+      lightMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [buildings, lightTransforms]);
+
+  return (
+    <group>
+      {/* Glass Shell Instances */}
+      <instancedMesh ref={meshRef} args={[undefined, undefined, buildings.length]} castShadow receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshPhysicalMaterial 
+          color="#90caf9"
+          transmission={0.9} 
+          opacity={1}
+          metalness={0.2}
+          roughness={0.05}
+          ior={1.5} 
+          thickness={5} 
+          envMapIntensity={2.5}
+          clearcoat={1}
+          attenuationColor="#e3f2fd"
+          attenuationDistance={5}
+        />
+      </instancedMesh>
+      
+      {/* Warm Interior Lights Instances */}
+      <instancedMesh ref={lightMeshRef} args={[undefined, undefined, lightTransforms.length]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial 
+          color="#ffb74d"
+          transparent 
+          opacity={0.3} 
+          blending={THREE.AdditiveBlending} 
+        />
+      </instancedMesh>
+    </group>
+  );
+}
+
+// --- Instanced Crystal Trees ---
+function CrystalTrees() {
+  const meshRef = useRef<THREE.InstancedMesh>(null!);
+  const count = 150;
+
+  const transforms = useMemo(() => {
+    const items = [];
+    const dummy = new THREE.Object3D();
+    
+    for (let i = 0; i < count; i++) {
+      const x = (Math.random() - 0.5) * 40;
+      const z = (Math.random() - 0.5) * 100;
+      const scale = 0.5 + Math.random() * 0.8;
+      
+      dummy.position.set(x, scale * 2, z); // Adjust y based on scale/height
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix();
+      items.push(dummy.matrix.clone());
     }
     return items;
   }, []);
 
+  useEffect(() => {
+    if (meshRef.current) {
+      transforms.forEach((matrix, i) => {
+        meshRef.current.setMatrixAt(i, matrix);
+      });
+      meshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [transforms]);
+
   return (
-    <group>
-      {buildings.map((b, i) => (
-        <group key={i} position={b.position as [number, number, number]}>
-          {/* Glass Shell */}
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={b.args as [number, number, number]} />
-            <meshPhysicalMaterial 
-              color="#90caf9" // Slightly deeper blue
-              transmission={0.9} 
-              opacity={1}
-              metalness={0.2}
-              roughness={0.05}
-              ior={1.5} 
-              thickness={5} 
-              envMapIntensity={2.5}
-              clearcoat={1}
-              attenuationColor="#e3f2fd"
-              attenuationDistance={5}
-            />
-          </mesh>
-          
-          {/* Warm Interior Lights (Windows) */}
-          <mesh scale={[0.95, 0.99, 0.95]}>
-            <boxGeometry args={b.args as [number, number, number]} />
-            <meshBasicMaterial 
-              color="#ffb74d" // Warm orange
-              transparent 
-              opacity={0.3} 
-              blending={THREE.AdditiveBlending} 
-            />
-          </mesh>
-          
-          {/* Random bright windows */}
-          {Math.random() > 0.7 && (
-             <pointLight 
-                position={[0, (Math.random() - 0.5) * b.args[1], 0]} 
-                color="#ff9800" 
-                intensity={2} 
-                distance={30} 
-                decay={2} 
-             />
-          )}
-        </group>
-      ))}
-    </group>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]} castShadow>
+      <coneGeometry args={[1.2, 4, 6]} />
+      <meshPhysicalMaterial 
+        color="#e1f5fe"
+        transmission={0.8}
+        roughness={0.3}
+        metalness={0.2}
+        thickness={1}
+        envMapIntensity={1.5}
+      />
+    </instancedMesh>
   );
 }
 
@@ -173,41 +258,6 @@ function FrozenLake() {
         ior={1.33}
       />
     </mesh>
-  );
-}
-
-// --- Crystal Trees ---
-function CrystalTrees() {
-  const trees = useMemo(() => {
-    const items = [];
-    // Scatter trees in the park area
-    for (let i = 0; i < 100; i++) {
-      const x = (Math.random() - 0.5) * 40;
-      const z = (Math.random() - 0.5) * 100;
-      const scale = 0.5 + Math.random() * 0.8;
-      items.push({ pos: [x, 0, z], scale });
-    }
-    return items;
-  }, []);
-
-  return (
-    <group>
-      {trees.map((t, i) => (
-        <group key={i} position={t.pos as [number, number, number]} scale={[t.scale, t.scale, t.scale]}>
-          <mesh position={[0, 2, 0]} castShadow>
-            <coneGeometry args={[1.2, 4, 6]} />
-            <meshPhysicalMaterial 
-              color="#e1f5fe"
-              transmission={0.8}
-              roughness={0.3}
-              metalness={0.2}
-              thickness={1}
-              envMapIntensity={1.5}
-            />
-          </mesh>
-        </group>
-      ))}
-    </group>
   );
 }
 
@@ -247,7 +297,7 @@ function Ground() {
 
 export default function Scene() {
   return (
-    <Canvas shadows camera={{ position: [0, 10, 40], fov: 50 }}>
+    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 10, 40], fov: 50 }}>
       {/* High Quality Environment */}
       <Environment preset="city" background blur={0.8} />
       
@@ -260,24 +310,23 @@ export default function Scene() {
         enableDamping
       />
 
-      {/* Cinematic Lighting */}
+      {/* Cinematic Lighting - Optimized Shadow Map */}
       <ambientLight intensity={0.2} color="#0d47a1" />
       
-      {/* Moon Light (Cold) */}
       <directionalLight 
         position={[-50, 80, -50]} 
         intensity={3} 
         color="#e1f5fe"
         castShadow 
-        shadow-mapSize={[4096, 4096]}
+        shadow-mapSize={[2048, 2048]} // Reduced from 4096 for performance
         shadow-bias={-0.0001}
       />
       
       {/* City Glow (Warm) */}
       <pointLight position={[0, 20, 0]} intensity={1} color="#ffcc80" distance={100} />
 
-      <Stars radius={200} depth={50} count={8000} factor={4} saturation={0} fade speed={0.2} />
-      <Cloud opacity={0.2} speed={0.1} segments={20} position={[0, 60, -100]} color="#90caf9" />
+      <Stars radius={200} depth={50} count={5000} factor={4} saturation={0} fade speed={0.2} />
+      <Cloud opacity={0.2} speed={0.1} segments={10} position={[0, 60, -100]} color="#90caf9" />
 
       <group>
         <CentralParkCity />
