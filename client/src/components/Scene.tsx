@@ -3,9 +3,7 @@ import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { LandmarkGeometries } from './Landmarks';
-import { SanRemo, TheDakota, Guggenheim, ThePlaza, TheMet } from './RealLandmarks';
-import { createSteppedBuildingGeometry } from './SteppedBuilding';
+import { BuildingManager } from './BuildingManager';
 import { ParkTerrain } from './ParkTerrain';
 import { FloatingPlatform } from './FloatingPlatform';
 
@@ -114,198 +112,6 @@ const SnowSystem = () => {
   );
 };
 
-
-
-const City = () => {
-  const genericMesh = useRef<THREE.InstancedMesh>(null!);
-  const lightMesh = useRef<THREE.InstancedMesh>(null!);
-  
-  // Landmark refs
-  const empireRef = useRef<THREE.Mesh>(null!);
-  const chryslerRef = useRef<THREE.Mesh>(null!);
-  const park432Ref = useRef<THREE.Mesh>(null!);
-  const vanderbiltRef = useRef<THREE.Mesh>(null!);
-
-  const { genericData, lightData } = useMemo(() => {
-    const genericInstances: THREE.Matrix4[] = [];
-    const lightInstances: THREE.Matrix4[] = [];
-    const dummy = new THREE.Object3D();
-
-    // Central Park Dimensions: 40 wide (X), 200 long (Z)
-    // Park X range: -20 to 20
-    // Park Z range: -100 to 100
-    
-    // 1. Central Park South (Midtown) - Z > 100
-    // High density, supertalls
-    for (let x = -60; x <= 60; x += 6) {
-      for (let z = 105; z <= 150; z += 6) {
-        if (Math.random() > 0.8) continue; // Some gaps
-        
-        const scaleY = 20 + Math.random() * 40; // Tall buildings
-        dummy.position.set(x, scaleY / 2, z);
-        dummy.rotation.y = 0;
-        dummy.scale.set(4, scaleY / 2, 4);
-        dummy.updateMatrix();
-        genericInstances.push(dummy.matrix.clone());
-        
-        // Lights
-        if (Math.random() > 0.2) {
-          dummy.scale.set(3, scaleY * 0.8, 3);
-          dummy.updateMatrix();
-          lightInstances.push(dummy.matrix.clone());
-        }
-      }
-    }
-
-    // 2. Central Park West (Residential) - X < -20
-    // Twin towers, uniform height wall
-    for (let z = -100; z <= 100; z += 8) {
-      // Front row (The Wall)
-      const scaleY = 15 + Math.random() * 10;
-      dummy.position.set(-25, scaleY / 2, z);
-      dummy.rotation.y = 0;
-      dummy.scale.set(5, scaleY / 2, 6);
-      dummy.updateMatrix();
-      genericInstances.push(dummy.matrix.clone());
-      
-      // Lights
-      if (Math.random() > 0.3) {
-        dummy.scale.set(4, scaleY * 0.8, 5);
-        dummy.updateMatrix();
-        lightInstances.push(dummy.matrix.clone());
-      }
-
-      // Back rows
-      for (let x = -35; x >= -80; x -= 8) {
-        if (Math.random() > 0.6) continue;
-        const h = 10 + Math.random() * 15;
-        dummy.position.set(x, h / 2, z);
-        dummy.scale.set(5, h / 2, 5);
-        dummy.updateMatrix();
-        genericInstances.push(dummy.matrix.clone());
-      }
-    }
-
-    // 3. Fifth Avenue (Museum Mile) - X > 20
-    // Continuous limestone wall, lower height
-    for (let z = -100; z <= 100; z += 8) {
-      // Front row
-      const scaleY = 12 + Math.random() * 5; // Lower, uniform
-      dummy.position.set(25, scaleY / 2, z);
-      dummy.rotation.y = 0;
-      dummy.scale.set(5, scaleY / 2, 6);
-      dummy.updateMatrix();
-      genericInstances.push(dummy.matrix.clone());
-      
-      // Lights
-      if (Math.random() > 0.3) {
-        dummy.scale.set(4, scaleY * 0.8, 5);
-        dummy.updateMatrix();
-        lightInstances.push(dummy.matrix.clone());
-      }
-
-      // Back rows (Upper East Side)
-      for (let x = 35; x <= 80; x += 8) {
-        if (Math.random() > 0.6) continue;
-        const h = 8 + Math.random() * 12;
-        dummy.position.set(x, h / 2, z);
-        dummy.scale.set(5, h / 2, 5);
-        dummy.updateMatrix();
-        genericInstances.push(dummy.matrix.clone());
-      }
-    }
-    
-    return { 
-      genericData: genericInstances,
-      lightData: lightInstances
-    };
-  }, []);
-
-  useEffect(() => {
-    if (genericMesh.current) {
-      genericData.forEach((matrix, i) => genericMesh.current.setMatrixAt(i, matrix));
-      genericMesh.current.instanceMatrix.needsUpdate = true;
-    }
-    if (lightMesh.current) {
-      lightData.forEach((matrix, i) => lightMesh.current.setMatrixAt(i, matrix));
-      lightMesh.current.instanceMatrix.needsUpdate = true;
-    }
-  }, [genericData, lightData]);
-
-  // Geometries
-  const steppedGeo = useMemo(() => createSteppedBuildingGeometry(), []);
-  const empireGeo = useMemo(() => LandmarkGeometries.EmpireState(), []);
-  const chryslerGeo = useMemo(() => LandmarkGeometries.Chrysler(), []);
-  const park432Geo = useMemo(() => LandmarkGeometries.Park432(), []);
-  const vanderbiltGeo = useMemo(() => LandmarkGeometries.OneVanderbilt(), []);
-
-  return (
-    <group>
-      {/* Generic City Grid */}
-      <instancedMesh ref={genericMesh} args={[undefined, undefined, genericData.length]}>
-        <primitive object={steppedGeo} />
-        <meshStandardMaterial color="#b0c4de" roughness={0.6} metalness={0.1} />
-      </instancedMesh>
-
-      {/* Window Lights */}
-      <instancedMesh ref={lightMesh} args={[undefined, undefined, lightData.length]}>
-        <boxGeometry />
-        <meshBasicMaterial color="#ffd700" />
-      </instancedMesh>
-
-      {/* --- REAL Central Park Landmarks --- */}
-
-      {/* Central Park West: The San Remo (Twin Towers) */}
-      <mesh geometry={useMemo(() => SanRemo(), [])} position={[-45, 0, 20]} rotation={[0, Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
-        <meshStandardMaterial color="#eecfa1" roughness={0.8} />
-      </mesh>
-
-      {/* Central Park West: The Dakota */}
-      <mesh geometry={useMemo(() => TheDakota(), [])} position={[-45, 0, -20]} rotation={[0, Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
-        <meshStandardMaterial color="#8b4513" roughness={0.9} />
-      </mesh>
-
-      {/* Fifth Avenue: The Guggenheim (Spiral) */}
-      <mesh geometry={useMemo(() => Guggenheim(), [])} position={[45, 0, -40]} rotation={[0, -Math.PI/2, 0]} scale={[1.2, 1.2, 1.2]}>
-        <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
-      </mesh>
-
-      {/* Fifth Avenue: The Met Museum */}
-      <mesh geometry={useMemo(() => TheMet(), [])} position={[45, 0, 10]} rotation={[0, -Math.PI/2, 0]} scale={[1.5, 1.5, 1.5]}>
-        <meshStandardMaterial color="#d3d3d3" roughness={0.8} />
-      </mesh>
-
-      {/* Central Park South: The Plaza Hotel */}
-      <mesh geometry={useMemo(() => ThePlaza(), [])} position={[10, 0, 105]} rotation={[0, 0, 0]} scale={[1.8, 1.8, 1.8]}>
-        <meshStandardMaterial color="#fffdd0" roughness={0.7} />
-      </mesh>
-
-      {/* --- Iconic Landmarks (South End / Midtown) --- */}
-      
-      {/* Empire State Building (South Center, further back) */}
-      <mesh ref={empireRef} geometry={empireGeo || undefined} position={[0, 0, 130]} scale={[3, 3, 3]}>
-        <meshStandardMaterial color="#ff99aa" roughness={0.8} metalness={0} />
-      </mesh>
-
-      {/* Chrysler Building (South East) */}
-      <mesh ref={chryslerRef} geometry={chryslerGeo || undefined} position={[30, 0, 140]} scale={[2.5, 2.5, 2.5]}>
-        <meshStandardMaterial color="#aaddff" roughness={0.8} metalness={0} />
-      </mesh>
-
-      {/* 432 Park Avenue (South East, prominent) */}
-      <mesh ref={park432Ref} geometry={park432Geo || undefined} position={[15, 0, 110]} scale={[2, 2, 2]}>
-        <meshStandardMaterial color="#eeeeee" roughness={0.8} metalness={0} />
-      </mesh>
-
-      {/* One Vanderbilt (South West) */}
-      <mesh ref={vanderbiltRef} geometry={vanderbiltGeo || undefined} position={[-20, 0, 120]} scale={[2.5, 2.5, 2.5]}>
-        <meshStandardMaterial color="#99ccff" roughness={0.8} metalness={0} />
-      </mesh>
-
-    </group>
-  );
-};
-
 const Trees = () => {
   const mesh = useRef<THREE.InstancedMesh>(null!);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -314,76 +120,115 @@ const Trees = () => {
     const instances: THREE.Matrix4[] = [];
     // Place trees INSIDE the park void (40x200)
     for (let i = 0; i < 1000; i++) {
-      const x = (Math.random() - 0.5) * 36; // Keep inside -18 to 18
-      const z = (Math.random() - 0.5) * 190; // Keep inside -95 to 95
+      const x = (Math.random() - 0.5) * 18; // Keep within -9 to 9 (park width)
+      const z = (Math.random() - 0.5) * 48; // Keep within -24 to 24 (park length)
       
-      // Avoid Reservoir (North)
-      const reservoirDist = Math.sqrt(Math.pow(x * 1.5, 2) + Math.pow((z + 50) * 0.8, 2));
-      if (reservoirDist < 16) continue;
+      // Avoid lake area (approx z > 10)
+      if (z > 10 && x > 0) continue;
 
-      // Avoid Lake (South)
-      const lakeDist = Math.sqrt(Math.pow(x, 2) + Math.pow((z - 30), 2));
-      if (lakeDist < 12) continue;
-
-      dummy.position.set(x, 0.5, z); // Slightly raised on terrain
-      const scale = 0.5 + Math.random() * 0.5;
-      dummy.scale.set(scale, scale, scale);
+      dummy.position.set(x, 0, z);
+      const scale = 0.3 + Math.random() * 0.4;
+      dummy.scale.set(scale, scale * (0.8 + Math.random() * 0.4), scale);
+      dummy.rotation.y = Math.random() * Math.PI;
       dummy.updateMatrix();
       instances.push(dummy.matrix.clone());
     }
     return instances;
   }, []);
 
-  useEffect(() => {
-    if (mesh.current) {
-      treeData.forEach((matrix, i) => mesh.current.setMatrixAt(i, matrix));
-      mesh.current.instanceMatrix.needsUpdate = true;
-    }
-  }, [treeData]);
-
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, treeData.length]}>
-      <coneGeometry args={[1, 4, 8]} />
-      <meshStandardMaterial color="#ddeeff" roughness={0.8} />
+      <coneGeometry args={[1, 2, 4]} />
+      <meshStandardMaterial color="#a0c0a0" roughness={0.8} />
+      {treeData.map((matrix, i) => (
+        <primitive key={i} object={dummy} /> // React-three-fiber handles instance matrix updates automatically if passed via args, but manual set is better for static
+      ))}
     </instancedMesh>
   );
 };
 
+// Manual matrix update for trees
+const TreeInstances = () => {
+   const mesh = useRef<THREE.InstancedMesh>(null!);
+   const dummy = useMemo(() => new THREE.Object3D(), []);
+   
+   const count = 800;
+   
+   useEffect(() => {
+     if (!mesh.current) return;
+     
+     let idx = 0;
+     for (let i = 0; i < count; i++) {
+        const x = (Math.random() - 0.5) * 18; 
+        const z = (Math.random() - 0.5) * 48;
+        
+        // Simple lake exclusion
+        if (z > 15 && x > 2) continue; // Pond
+        if (z < -15 && x < -2) continue; // Reservoir
+
+        dummy.position.set(x, 0.5, z);
+        const s = 0.3 + Math.random() * 0.3;
+        dummy.scale.set(s, s + Math.random() * 0.3, s);
+        dummy.rotation.y = Math.random() * Math.PI;
+        dummy.updateMatrix();
+        mesh.current.setMatrixAt(idx++, dummy.matrix);
+     }
+     mesh.current.instanceMatrix.needsUpdate = true;
+   }, []);
+
+   return (
+     <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
+       <coneGeometry args={[1, 2.5, 5]} />
+       <meshStandardMaterial color="#cce0cc" roughness={0.9} />
+     </instancedMesh>
+   )
+}
+
+
 export default function Scene() {
   return (
-    <div className="w-full h-screen bg-black">
-      <Canvas orthographic camera={{ position: [100, 100, 100], zoom: 10, near: -200, far: 500 }}>
-        {/* Pastel Gradient Background */}
-        <color attach="background" args={['#ffd1dc']} />
-        
-        <OrbitControls 
-          enablePan={true} 
-          maxPolarAngle={Math.PI / 2.2} 
-          minZoom={5}
-          maxZoom={20}
-          autoRotate
-          autoRotateSpeed={0.5}
-        />
+    <Canvas shadows camera={{ position: [40, 40, 40], fov: 35, near: 1, far: 1000 }}>
+      <color attach="background" args={['#ffdde1']} /> {/* Pastel Pink Sky */}
+      
+      {/* Isometric Camera Setup */}
+      <orthographicCamera args={[-50, 50, 50, -50, 1, 1000]} position={[50, 50, 50]} zoom={10} />
+      
+      <OrbitControls 
+        autoRotate 
+        autoRotateSpeed={0.5} 
+        enableZoom={true} 
+        maxPolarAngle={Math.PI / 2.2} 
+        minPolarAngle={0.5}
+      />
 
-        {/* Soft, Warm Lighting for Pastel Look */}
-        <ambientLight intensity={0.8} color="#ffffff" />
-        <directionalLight position={[50, 100, 50]} intensity={1.2} color="#fff0dd" castShadow shadow-mapSize={[2048, 2048]} />
-        <pointLight position={[-50, 50, -50]} intensity={0.5} color="#dbeeff" />
-        
-        <Environment preset="night" />
-        
-        <group>
-          <group position={[0, 5, 0]}>
-            <City />
-            <Trees />
-            <ParkTerrain />
-            <SnowSystem />
-          </group>
-          <FloatingPlatform />
-        </group>
+      {/* Lighting */}
+      <ambientLight intensity={0.8} color="#ffffff" />
+      <directionalLight 
+        position={[50, 100, 50]} 
+        intensity={1.5} 
+        castShadow 
+        shadow-mapSize={[2048, 2048]}
+        color="#fff0dd"
+      />
+      <pointLight position={[-20, 10, -20]} intensity={0.5} color="#aaddff" />
 
-        {/* Removed heavy post-processing for clean vector/toy look */}
-      </Canvas>
-    </div>
+      {/* Environment */}
+      <fog attach="fog" args={['#ffdde1', 30, 120]} />
+      
+      {/* World Content */}
+      <group position={[0, -5, 0]}>
+        <FloatingPlatform />
+        <ParkTerrain />
+        <TreeInstances />
+        <BuildingManager />
+        <SnowSystem />
+      </group>
+
+      {/* Post Processing */}
+      <EffectComposer>
+        <Bloom luminanceThreshold={0.8} mipmapBlur intensity={0.5} radius={0.4} />
+        <Vignette eskil={false} offset={0.1} darkness={0.3} />
+      </EffectComposer>
+    </Canvas>
   );
 }

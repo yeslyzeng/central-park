@@ -1,0 +1,560 @@
+[
+  {
+    "name": "Trump International",
+    "street": 59,
+    "height": 44,
+    "style": "glass_tower",
+    "color": "#A8C0D0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "15 Central Park West",
+    "street": 61,
+    "height": 35,
+    "style": "limestone_classic",
+    "color": "#E3DCCB",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Century",
+    "street": 62,
+    "height": 30,
+    "style": "art_deco_twin",
+    "color": "#D8C8B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "Holy Trinity Lutheran",
+    "street": 65,
+    "height": 8,
+    "style": "gothic_church",
+    "color": "#C0A090",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Prasada",
+    "street": 65,
+    "height": 12,
+    "style": "beaux_arts",
+    "color": "#E0E0E0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Majestic",
+    "street": 72,
+    "height": 29,
+    "style": "art_deco_twin",
+    "color": "#D0C0B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Dakota",
+    "street": 72,
+    "height": 10,
+    "style": "chateau",
+    "color": "#E8D8C0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Langham",
+    "street": 73,
+    "height": 13,
+    "style": "beaux_arts",
+    "color": "#D8C8B8",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The San Remo",
+    "street": 74,
+    "height": 27,
+    "style": "beaux_arts_twin",
+    "color": "#E6D0B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Kenilworth",
+    "street": 75,
+    "height": 12,
+    "style": "beaux_arts",
+    "color": "#D0C0C0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "NY Historical Society",
+    "street": 77,
+    "height": 5,
+    "style": "museum",
+    "color": "#D8D8D8",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "Am Museum Nat History",
+    "street": 79,
+    "height": 6,
+    "style": "museum_castle",
+    "color": "#C8A890",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Beresford",
+    "street": 81,
+    "height": 23,
+    "style": "baroque_towers",
+    "color": "#D8C8B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Alden",
+    "street": 82,
+    "height": 16,
+    "style": "brick_classic",
+    "color": "#C0A090",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Rossleigh",
+    "street": 85,
+    "height": 12,
+    "style": "beaux_arts",
+    "color": "#D0C0B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Eldorado",
+    "street": 90,
+    "height": 30,
+    "style": "art_deco_twin",
+    "color": "#D8C8B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Ardsley",
+    "street": 92,
+    "height": 20,
+    "style": "art_deco",
+    "color": "#C8C8C8",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "325 CPW",
+    "street": 93,
+    "height": 9,
+    "style": "neo_renaissance",
+    "color": "#D0C0B0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Columbia",
+    "street": 96,
+    "height": 16,
+    "style": "brick_classic",
+    "color": "#C0A090",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The St. Urban",
+    "street": 89,
+    "height": 13,
+    "style": "beaux_arts_dome",
+    "color": "#C8B0A0",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "455 CPW (The Castle)",
+    "street": 105,
+    "height": 6,
+    "style": "chateau_round",
+    "color": "#C08080",
+    "side": "West",
+    "avenue": 8
+  },
+  {
+    "name": "The Sherry-Netherland",
+    "street": 59,
+    "height": 38,
+    "style": "gothic_tower",
+    "color": "#D8C8B0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "The Pierre",
+    "street": 61,
+    "height": 41,
+    "style": "mansard_tower",
+    "color": "#E0D0C0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Knickerbocker Club",
+    "street": 62,
+    "height": 5,
+    "style": "georgian",
+    "color": "#C08080",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "810 Fifth Avenue",
+    "street": 62,
+    "height": 13,
+    "style": "limestone",
+    "color": "#E0E0E0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Temple Emanu-El",
+    "street": 65,
+    "height": 10,
+    "style": "romanesque",
+    "color": "#D0D0C0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "The Frick Collection",
+    "street": 70,
+    "height": 4,
+    "style": "mansion",
+    "color": "#E0E0E0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "927 Fifth Avenue",
+    "street": 74,
+    "height": 12,
+    "style": "limestone_palazzo",
+    "color": "#D8D8D8",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "The Commonwealth",
+    "street": 80,
+    "height": 14,
+    "style": "classic",
+    "color": "#D0C0B0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Metropolitan Museum",
+    "street": 82,
+    "height": 6,
+    "style": "museum_grand",
+    "color": "#D8D8D8",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Neue Galerie",
+    "street": 86,
+    "height": 5,
+    "style": "mansion_brick",
+    "color": "#D0C0C0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Guggenheim Museum",
+    "street": 88,
+    "height": 6,
+    "style": "spiral_modern",
+    "color": "#F0F0F0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "National Academy",
+    "street": 89,
+    "height": 5,
+    "style": "mansion",
+    "color": "#E0E0E0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Cooper Hewitt",
+    "street": 91,
+    "height": 5,
+    "style": "mansion_brick",
+    "color": "#A06050",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Jewish Museum",
+    "street": 92,
+    "height": 6,
+    "style": "gothic_mansion",
+    "color": "#D0D0D0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "1107 Fifth Avenue",
+    "street": 92,
+    "height": 14,
+    "style": "limestone",
+    "color": "#E0E0E0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "Museum of City of NY",
+    "street": 103,
+    "height": 5,
+    "style": "georgian_brick",
+    "color": "#C08080",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "El Museo del Barrio",
+    "street": 104,
+    "height": 5,
+    "style": "classic",
+    "color": "#D0D0D0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "The Africa Center",
+    "street": 110,
+    "height": 10,
+    "style": "modern_glass",
+    "color": "#C0D0E0",
+    "side": "East",
+    "avenue": 5
+  },
+  {
+    "name": "The Plaza Hotel",
+    "avenue": 5.1,
+    "height": 20,
+    "style": "chateau_grand",
+    "color": "#E8E8E8",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "General Motors Bldg",
+    "avenue": 5.0,
+    "height": 50,
+    "style": "glass_slab",
+    "color": "#E0E0E0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Solow Building",
+    "avenue": 5.2,
+    "height": 50,
+    "style": "glass_slope",
+    "color": "#202020",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Park Lane Hotel",
+    "avenue": 5.3,
+    "height": 46,
+    "style": "limestone_tower",
+    "color": "#D8D8D8",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Ritz Carlton",
+    "avenue": 5.5,
+    "height": 35,
+    "style": "limestone_classic",
+    "color": "#D0C0B0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Central Park Tower",
+    "avenue": 7.0,
+    "height": 98,
+    "style": "glass_supertall",
+    "color": "#A0C0D0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "220 Central Park South",
+    "avenue": 7.1,
+    "height": 70,
+    "style": "limestone_tower",
+    "color": "#E0D8C8",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Hampshire House",
+    "avenue": 6.0,
+    "height": 37,
+    "style": "stepped_white",
+    "color": "#F0F0F0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Essex House",
+    "avenue": 6.2,
+    "height": 40,
+    "style": "art_deco_sign",
+    "color": "#D0C0B0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "NY Athletic Club",
+    "avenue": 6.5,
+    "height": 24,
+    "style": "renaissance",
+    "color": "#D0C0B0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Gainsborough Studios",
+    "avenue": 6.8,
+    "height": 16,
+    "style": "studio_windows",
+    "color": "#D0C0C0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Steinway Tower",
+    "avenue": 6.3,
+    "height": 84,
+    "style": "thin_supertall",
+    "color": "#B09070",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "One57",
+    "avenue": 6.6,
+    "height": 75,
+    "style": "glass_waterfall",
+    "color": "#90A0C0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Columbus Circle Towers",
+    "avenue": 8.0,
+    "height": 55,
+    "style": "glass_twin",
+    "color": "#A0B0C0",
+    "side": "South",
+    "street": 59
+  },
+  {
+    "name": "Dana Discovery Center",
+    "avenue": 5.5,
+    "height": 2,
+    "style": "chalet",
+    "color": "#A06040",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "111 Central Park North",
+    "avenue": 6.0,
+    "height": 19,
+    "style": "modern_glass",
+    "color": "#C0D0E0",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "The Semiramis",
+    "avenue": 6.5,
+    "height": 7,
+    "style": "classic_brick",
+    "color": "#C0A090",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "Towers on the Park",
+    "avenue": 8.0,
+    "height": 20,
+    "style": "brick_towers",
+    "color": "#C08060",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "Harlem Meer Center",
+    "avenue": 5.2,
+    "height": 2,
+    "style": "pavilion",
+    "color": "#D0C0B0",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "Duke Ellington Circle",
+    "avenue": 5.0,
+    "height": 1,
+    "style": "monument",
+    "color": "#A0A0A0",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "Frederick Douglass Cir",
+    "avenue": 8.0,
+    "height": 1,
+    "style": "monument",
+    "color": "#A0A0A0",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "Avalon Morningside",
+    "avenue": 7.8,
+    "height": 20,
+    "style": "modern_brick",
+    "color": "#D0C0B0",
+    "side": "North",
+    "street": 110
+  },
+  {
+    "name": "444 Central Park West",
+    "avenue": 7.9,
+    "height": 18,
+    "style": "art_deco",
+    "color": "#D0D0C0",
+    "side": "North",
+    "street": 110
+  }
+]
