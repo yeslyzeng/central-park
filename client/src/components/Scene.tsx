@@ -5,6 +5,7 @@ import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { LandmarkGeometries } from './Landmarks';
 import { createSteppedBuildingGeometry } from './SteppedBuilding';
+import { ParkTerrain } from './ParkTerrain';
 
 // --- Shaders ---
 const snowVertexShader = `
@@ -111,23 +112,7 @@ const SnowSystem = () => {
   );
 };
 
-const FrozenLake = () => {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
-      <planeGeometry args={[200, 200]} />
-      <meshPhysicalMaterial
-        color="#aaddff"
-        roughness={0.05}
-        metalness={0.1}
-        transmission={0.6}
-        thickness={2}
-        ior={1.33}
-        clearcoat={1}
-        clearcoatRoughness={0.1}
-      />
-    </mesh>
-  );
-};
+
 
 const City = () => {
   const genericMesh = useRef<THREE.InstancedMesh>(null!);
@@ -144,36 +129,87 @@ const City = () => {
     const lightInstances: THREE.Matrix4[] = [];
     const dummy = new THREE.Object3D();
 
-    // Create a rectangular void for Central Park (approx -15 to 15 in X, -40 to 40 in Z)
-    // We will place buildings OUTSIDE this box
+    // Central Park Dimensions: 40 wide (X), 200 long (Z)
+    // Park X range: -20 to 20
+    // Park Z range: -100 to 100
     
-    for (let i = 0; i < 600; i++) {
-      const x = (Math.random() - 0.5) * 180;
-      const z = (Math.random() - 0.5) * 180;
+    // 1. Central Park South (Midtown) - Z > 100
+    // High density, supertalls
+    for (let x = -60; x <= 60; x += 6) {
+      for (let z = 105; z <= 150; z += 6) {
+        if (Math.random() > 0.8) continue; // Some gaps
+        
+        const scaleY = 20 + Math.random() * 40; // Tall buildings
+        dummy.position.set(x, scaleY / 2, z);
+        dummy.rotation.y = 0;
+        dummy.scale.set(4, scaleY / 2, 4);
+        dummy.updateMatrix();
+        genericInstances.push(dummy.matrix.clone());
+        
+        // Lights
+        if (Math.random() > 0.2) {
+          dummy.scale.set(3, scaleY * 0.8, 3);
+          dummy.updateMatrix();
+          lightInstances.push(dummy.matrix.clone());
+        }
+      }
+    }
 
-      // Check if inside Central Park void
-      if (Math.abs(x) < 20 && Math.abs(z) < 50) continue;
-
-      // Scale based on distance to center (taller near park)
-      const dist = Math.sqrt(x*x + z*z);
-      const scaleY = Math.max(2, Math.random() * 20 - dist * 0.1);
-      
-      // Adjust position for stepped geometry (pivot is different)
-      dummy.position.set(x, scaleY / 2, z);
-      dummy.rotation.y = 0; // Grid layout
-      // Make them slightly wider to look like city blocks
-      dummy.scale.set(3 + Math.random() * 2, scaleY / 2, 3 + Math.random() * 2);
+    // 2. Central Park West (Residential) - X < -20
+    // Twin towers, uniform height wall
+    for (let z = -100; z <= 100; z += 8) {
+      // Front row (The Wall)
+      const scaleY = 15 + Math.random() * 10;
+      dummy.position.set(-25, scaleY / 2, z);
+      dummy.rotation.y = 0;
+      dummy.scale.set(5, scaleY / 2, 6);
       dummy.updateMatrix();
       genericInstances.push(dummy.matrix.clone());
-
-      // Add window lights
+      
+      // Lights
       if (Math.random() > 0.3) {
-        // Add internal light blocks
-        const lightScaleY = scaleY * 0.8;
-        dummy.position.set(x, lightScaleY / 2 + 0.5, z);
-        dummy.scale.set(1.5, lightScaleY, 1.5);
+        dummy.scale.set(4, scaleY * 0.8, 5);
         dummy.updateMatrix();
         lightInstances.push(dummy.matrix.clone());
+      }
+
+      // Back rows
+      for (let x = -35; x >= -80; x -= 8) {
+        if (Math.random() > 0.6) continue;
+        const h = 10 + Math.random() * 15;
+        dummy.position.set(x, h / 2, z);
+        dummy.scale.set(5, h / 2, 5);
+        dummy.updateMatrix();
+        genericInstances.push(dummy.matrix.clone());
+      }
+    }
+
+    // 3. Fifth Avenue (Museum Mile) - X > 20
+    // Continuous limestone wall, lower height
+    for (let z = -100; z <= 100; z += 8) {
+      // Front row
+      const scaleY = 12 + Math.random() * 5; // Lower, uniform
+      dummy.position.set(25, scaleY / 2, z);
+      dummy.rotation.y = 0;
+      dummy.scale.set(5, scaleY / 2, 6);
+      dummy.updateMatrix();
+      genericInstances.push(dummy.matrix.clone());
+      
+      // Lights
+      if (Math.random() > 0.3) {
+        dummy.scale.set(4, scaleY * 0.8, 5);
+        dummy.updateMatrix();
+        lightInstances.push(dummy.matrix.clone());
+      }
+
+      // Back rows (Upper East Side)
+      for (let x = 35; x <= 80; x += 8) {
+        if (Math.random() > 0.6) continue;
+        const h = 8 + Math.random() * 12;
+        dummy.position.set(x, h / 2, z);
+        dummy.scale.set(5, h / 2, 5);
+        dummy.updateMatrix();
+        genericInstances.push(dummy.matrix.clone());
       }
     }
     
@@ -225,23 +261,23 @@ const City = () => {
 
       {/* --- Iconic Landmarks (South End / Midtown) --- */}
       
-      {/* Empire State Building (South Center) */}
-      <mesh ref={empireRef} geometry={empireGeo || undefined} position={[0, 0, 60]} scale={[2, 2, 2]}>
+      {/* Empire State Building (South Center, further back) */}
+      <mesh ref={empireRef} geometry={empireGeo || undefined} position={[0, 0, 130]} scale={[3, 3, 3]}>
         <meshPhysicalMaterial color="#aaddff" metalness={0.2} roughness={0.1} transmission={0.8} thickness={2} />
       </mesh>
 
       {/* Chrysler Building (South East) */}
-      <mesh ref={chryslerRef} geometry={chryslerGeo || undefined} position={[15, 0, 65]} scale={[1.8, 1.8, 1.8]}>
+      <mesh ref={chryslerRef} geometry={chryslerGeo || undefined} position={[30, 0, 140]} scale={[2.5, 2.5, 2.5]}>
         <meshPhysicalMaterial color="#ccddff" metalness={0.3} roughness={0.1} transmission={0.8} thickness={2} />
       </mesh>
 
-      {/* 432 Park Avenue (South East, closer) */}
-      <mesh ref={park432Ref} geometry={park432Geo || undefined} position={[10, 0, 45]} scale={[1.5, 1.5, 1.5]}>
+      {/* 432 Park Avenue (South East, prominent) */}
+      <mesh ref={park432Ref} geometry={park432Geo || undefined} position={[15, 0, 110]} scale={[2, 2, 2]}>
         <meshPhysicalMaterial color="#ffffff" metalness={0.1} roughness={0.1} transmission={0.9} thickness={1} />
       </mesh>
 
       {/* One Vanderbilt (South West) */}
-      <mesh ref={vanderbiltRef} geometry={vanderbiltGeo || undefined} position={[-12, 0, 55]} scale={[1.8, 1.8, 1.8]}>
+      <mesh ref={vanderbiltRef} geometry={vanderbiltGeo || undefined} position={[-20, 0, 120]} scale={[2.5, 2.5, 2.5]}>
         <meshPhysicalMaterial color="#bbddff" metalness={0.2} roughness={0.1} transmission={0.8} thickness={2} />
       </mesh>
 
@@ -255,15 +291,20 @@ const Trees = () => {
 
   const treeData = useMemo(() => {
     const instances: THREE.Matrix4[] = [];
-    // Place trees INSIDE the park void
-    for (let i = 0; i < 200; i++) {
-      const x = (Math.random() - 0.5) * 30; // Narrower X (width of park)
-      const z = (Math.random() - 0.5) * 80; // Longer Z (length of park)
+    // Place trees INSIDE the park void (40x200)
+    for (let i = 0; i < 1000; i++) {
+      const x = (Math.random() - 0.5) * 36; // Keep inside -18 to 18
+      const z = (Math.random() - 0.5) * 190; // Keep inside -95 to 95
       
-      // Avoid center lake area
-      if (Math.abs(x) < 8 && Math.abs(z) < 15) continue;
+      // Avoid Reservoir (North)
+      const reservoirDist = Math.sqrt(Math.pow(x * 1.5, 2) + Math.pow((z + 50) * 0.8, 2));
+      if (reservoirDist < 16) continue;
 
-      dummy.position.set(x, 0, z);
+      // Avoid Lake (South)
+      const lakeDist = Math.sqrt(Math.pow(x, 2) + Math.pow((z - 30), 2));
+      if (lakeDist < 12) continue;
+
+      dummy.position.set(x, 0.5, z); // Slightly raised on terrain
       const scale = 0.5 + Math.random() * 0.5;
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
@@ -290,16 +331,16 @@ const Trees = () => {
 export default function Scene() {
   return (
     <div className="w-full h-screen bg-black">
-      <Canvas camera={{ position: [0, 10, -40], fov: 45 }}>
+      <Canvas camera={{ position: [0, 60, -120], fov: 50 }}>
         <color attach="background" args={['#050a15']} />
         
         <OrbitControls 
-          enablePan={false} 
+          enablePan={true} 
           maxPolarAngle={Math.PI / 2 - 0.05} 
-          minDistance={10}
-          maxDistance={100}
+          minDistance={20}
+          maxDistance={300}
           autoRotate
-          autoRotateSpeed={0.5}
+          autoRotateSpeed={0.2}
         />
 
         <ambientLight intensity={0.2} />
@@ -311,7 +352,7 @@ export default function Scene() {
         <group>
           <City />
           <Trees />
-          <FrozenLake />
+          <ParkTerrain />
           <SnowSystem />
         </group>
 
