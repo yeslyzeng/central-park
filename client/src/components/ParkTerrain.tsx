@@ -48,41 +48,34 @@ export const ParkTerrain = () => {
     return geo;
   }, []);
 
+  // Architectural Water Material - Dark, reflective, stylized
+  const WATER_MATERIAL = new THREE.MeshPhysicalMaterial({
+    color: '#1a2b3c', // Dark blue-grey
+    roughness: 0.1,
+    metalness: 0.8,   // Metallic reflection
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
+  });
+
   return (
     <group>
-      {/* Snow-covered Terrain */}
+      {/* Snow-covered Terrain - Matte White */}
       <mesh geometry={terrainGeo} receiveShadow>
         <meshStandardMaterial 
           color="#ffffff" 
-          roughness={0.9} 
-          metalness={0.1}
+          roughness={1.0} 
+          metalness={0.0}
         />
       </mesh>
       
-      {/* The Reservoir Water (Frozen) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, -50]}>
+      {/* The Reservoir Water */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, -50]} material={WATER_MATERIAL}>
         <planeGeometry args={[30, 40]} />
-        <meshPhysicalMaterial
-          color="#aaddff"
-          roughness={0.05}
-          metalness={0.1}
-          transmission={0.6}
-          thickness={2}
-          ior={1.33}
-        />
       </mesh>
 
-      {/* The Lake Water (Frozen) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 30]}>
+      {/* The Lake Water */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 30]} material={WATER_MATERIAL}>
         <planeGeometry args={[25, 25]} />
-        <meshPhysicalMaterial
-          color="#aaddff"
-          roughness={0.05}
-          metalness={0.1}
-          transmission={0.6}
-          thickness={2}
-          ior={1.33}
-        />
       </mesh>
     </group>
   );

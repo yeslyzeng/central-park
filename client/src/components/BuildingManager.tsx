@@ -27,16 +27,31 @@ const AVENUE_TO_X = (avenue: number) => {
   return 10 - (pct * 20);
 };
 
-// Architectural Material - Clean White/Grey
-const ARCH_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#f0f0f0', // Very light grey/white
-  roughness: 0.7,   // Matte finish
-  metalness: 0.1,
+// --- ARCHITECTURAL MATERIALS ---
+
+// 1. Masonry (Matte White/Grey) - For historic buildings
+const MASONRY_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#f0f0f0', 
+  roughness: 0.9,   
+  metalness: 0.0,
 });
 
+// 2. Glass (Reflective, Semi-transparent) - For modern supertalls
+const GLASS_MATERIAL = new THREE.MeshPhysicalMaterial({
+  color: '#ffffff',
+  metalness: 0.1,
+  roughness: 0.05,
+  transmission: 0.6, // Glass-like transparency
+  thickness: 1.5,
+  envMapIntensity: 1.5,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.1,
+});
+
+// 3. Accent (Darker Grey) - For roofs/details
 const ACCENT_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#e0e0e0', // Slightly darker for details
-  roughness: 0.7,
+  color: '#d0d0d0', 
+  roughness: 0.8,
   metalness: 0.1,
 });
 
@@ -44,9 +59,13 @@ const BuildingGeometry = ({ style, height }: { style: string, height: number }) 
   // Base scale unit
   const scaleY = Math.max(1, height * 0.15); 
   
+  // Determine material based on style
+  const isModern = style.includes('glass') || style.includes('supertall') || style.includes('modern');
+  const mainMaterial = isModern ? GLASS_MATERIAL : MASONRY_MATERIAL;
+
   return (
     <group>
-      <mesh position={[0, scaleY / 2, 0]} castShadow receiveShadow material={ARCH_MATERIAL}>
+      <mesh position={[0, scaleY / 2, 0]} castShadow receiveShadow material={mainMaterial}>
         <boxGeometry args={[1.5, scaleY, 1.5]} />
       </mesh>
       
@@ -62,7 +81,7 @@ const BuildingGeometry = ({ style, height }: { style: string, height: number }) 
         </>
       )}
       {style.includes('supertall') && (
-         <mesh position={[0, scaleY + 2, 0]} castShadow receiveShadow material={ACCENT_MATERIAL}>
+         <mesh position={[0, scaleY + 2, 0]} castShadow receiveShadow material={GLASS_MATERIAL}>
             <coneGeometry args={[0.5, 4, 4]} />
           </mesh>
       )}
@@ -105,7 +124,6 @@ export const BuildingManager: React.FC = () => {
 
         return (
           <group key={`${b.name}-${i}`} position={[x, 0, z]} rotation={[0, rotY, 0]}>
-            {/* Ignore the pastel color from JSON, use architectural material */}
             <BuildingGeometry style={b.style} height={b.height} />
           </group>
         );

@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, Outline } from '@react-three/postprocessing';
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { BuildingManager } from './BuildingManager';
@@ -250,6 +250,13 @@ export default function Scene({ activeLayer }: SceneProps) {
       <EffectComposer>
         <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.3} radius={0.4} />
         <Vignette eskil={false} offset={0.1} darkness={0.2} />
+        <Outline 
+          blur
+          edgeStrength={2.5} 
+          width={500} 
+          visibleEdgeColor={0x000000} 
+          hiddenEdgeColor={0x000000} 
+        />
       </EffectComposer>
     </Canvas>
   );
