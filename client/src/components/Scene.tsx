@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { LandmarkGeometries } from './Landmarks';
 import { createSteppedBuildingGeometry } from './SteppedBuilding';
 import { ParkTerrain } from './ParkTerrain';
+import { FloatingPlatform } from './FloatingPlatform';
 
 // --- Shaders ---
 const snowVertexShader = `
@@ -242,43 +243,35 @@ const City = () => {
       {/* Generic City Grid */}
       <instancedMesh ref={genericMesh} args={[undefined, undefined, genericData.length]}>
         <primitive object={steppedGeo} />
-        <meshPhysicalMaterial
-          color="#88ccff"
-          metalness={0.1}
-          roughness={0.1}
-          transmission={0.9}
-          thickness={1.5}
-          ior={1.5}
-          transparent
-        />
+        <meshStandardMaterial color="#b0c4de" roughness={0.6} metalness={0.1} />
       </instancedMesh>
 
       {/* Window Lights */}
       <instancedMesh ref={lightMesh} args={[undefined, undefined, lightData.length]}>
         <boxGeometry />
-        <meshBasicMaterial color="#ffaa55" toneMapped={false} />
+        <meshBasicMaterial color="#ffd700" />
       </instancedMesh>
 
       {/* --- Iconic Landmarks (South End / Midtown) --- */}
       
       {/* Empire State Building (South Center, further back) */}
       <mesh ref={empireRef} geometry={empireGeo || undefined} position={[0, 0, 130]} scale={[3, 3, 3]}>
-        <meshPhysicalMaterial color="#aaddff" metalness={0.2} roughness={0.1} transmission={0.8} thickness={2} />
+        <meshStandardMaterial color="#ff99aa" roughness={0.8} metalness={0} />
       </mesh>
 
       {/* Chrysler Building (South East) */}
       <mesh ref={chryslerRef} geometry={chryslerGeo || undefined} position={[30, 0, 140]} scale={[2.5, 2.5, 2.5]}>
-        <meshPhysicalMaterial color="#ccddff" metalness={0.3} roughness={0.1} transmission={0.8} thickness={2} />
+        <meshStandardMaterial color="#aaddff" roughness={0.8} metalness={0} />
       </mesh>
 
       {/* 432 Park Avenue (South East, prominent) */}
       <mesh ref={park432Ref} geometry={park432Geo || undefined} position={[15, 0, 110]} scale={[2, 2, 2]}>
-        <meshPhysicalMaterial color="#ffffff" metalness={0.1} roughness={0.1} transmission={0.9} thickness={1} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.8} metalness={0} />
       </mesh>
 
       {/* One Vanderbilt (South West) */}
       <mesh ref={vanderbiltRef} geometry={vanderbiltGeo || undefined} position={[-20, 0, 120]} scale={[2.5, 2.5, 2.5]}>
-        <meshPhysicalMaterial color="#bbddff" metalness={0.2} roughness={0.1} transmission={0.8} thickness={2} />
+        <meshStandardMaterial color="#99ccff" roughness={0.8} metalness={0} />
       </mesh>
 
     </group>
@@ -331,36 +324,37 @@ const Trees = () => {
 export default function Scene() {
   return (
     <div className="w-full h-screen bg-black">
-      <Canvas camera={{ position: [0, 60, -120], fov: 50 }}>
-        <color attach="background" args={['#050a15']} />
+      <Canvas orthographic camera={{ position: [100, 100, 100], zoom: 10, near: -200, far: 500 }}>
+        {/* Pastel Gradient Background */}
+        <color attach="background" args={['#ffd1dc']} />
         
         <OrbitControls 
           enablePan={true} 
-          maxPolarAngle={Math.PI / 2 - 0.05} 
-          minDistance={20}
-          maxDistance={300}
+          maxPolarAngle={Math.PI / 2.2} 
+          minZoom={5}
+          maxZoom={20}
           autoRotate
-          autoRotateSpeed={0.2}
+          autoRotateSpeed={0.5}
         />
 
-        <ambientLight intensity={0.2} />
-        <pointLight position={[10, 20, 10]} intensity={1} color="#aaddff" />
-        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+        {/* Soft, Warm Lighting for Pastel Look */}
+        <ambientLight intensity={0.8} color="#ffffff" />
+        <directionalLight position={[50, 100, 50]} intensity={1.2} color="#fff0dd" castShadow shadow-mapSize={[2048, 2048]} />
+        <pointLight position={[-50, 50, -50]} intensity={0.5} color="#dbeeff" />
         
         <Environment preset="night" />
         
         <group>
-          <City />
-          <Trees />
-          <ParkTerrain />
-          <SnowSystem />
+          <group position={[0, 5, 0]}>
+            <City />
+            <Trees />
+            <ParkTerrain />
+            <SnowSystem />
+          </group>
+          <FloatingPlatform />
         </group>
 
-        <EffectComposer enableNormalPass={false}>
-          <Bloom luminanceThreshold={1} mipmapBlur intensity={1.5} radius={0.4} />
-          <Vignette eskil={false} offset={0.1} darkness={1.1} />
-          <ToneMapping adaptive={true} resolution={256} middleGrey={0.6} maxLuminance={16.0} averageLuminance={1.0} adaptationRate={1.0} />
-        </EffectComposer>
+        {/* Removed heavy post-processing for clean vector/toy look */}
       </Canvas>
     </div>
   );
